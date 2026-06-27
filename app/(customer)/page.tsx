@@ -3,16 +3,17 @@
 import { useState, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import Image from "next/image";
 import {
   MapPin,
   ChevronDown,
   ShoppingCart,
   User,
   Star,
-  Utensils, // NEW
-  CreditCard, // NEW
-  PartyPopper, // NEW
-  Info, // NEW
+  Utensils,
+  CreditCard,
+  PartyPopper,
+  Info,
   ClipboardList,
 } from "lucide-react";
 
@@ -35,12 +36,12 @@ interface MenuItem {
   categorySlug: string;
   type: "veg" | "non-veg";
   featured: boolean;
-  image: string; // NEW: Image URL/Path
-  available: boolean; // NEW: Availability toggle
+  image: string;
+  available: boolean;
 }
 
 const CATEGORIES: Category[] = [
-  { id: "1", name: "All Dishes", slug: "all", icon: "🥡" },
+  { id: "1", name: "All", slug: "all", icon: "" },
   { id: "2", name: "Sandwitch", slug: "sandwitch", icon: "🥪" },
   { id: "3", name: "Burger", slug: "burger", icon: "🍔" },
   { id: "4", name: "Staters", slug: "staters", icon: "🍟" },
@@ -53,7 +54,7 @@ const MOCK_MENU: MenuItem[] = [
     id: "b1",
     name: "Chicken Burger",
     subtitle: "Classic chicken patty",
-    price: 70,
+    price: 79,
     rating: 4.5,
     categorySlug: "burger",
     type: "non-veg",
@@ -109,7 +110,7 @@ const MOCK_MENU: MenuItem[] = [
     type: "non-veg",
     featured: false,
     image: "/images/egg_sand.jpg",
-    available: false, // Set to false to demonstrate out-of-stock UI
+    available: false,
   },
   {
     id: "s5",
@@ -290,7 +291,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.6,
     categorySlug: "drinks",
     type: "veg",
-    featured: true,
+    featured: false,
     image: "/images/drink/blue_angel.jpg",
     available: true,
   },
@@ -328,12 +329,22 @@ const MOCK_MENU: MenuItem[] = [
     type: "veg",
     featured: false,
     image: "/images/drink/Watermelon_Sparkling.png",
-    available: false, // Set to false to demonstrate out-of-stock UI
+    available: false,
   },
+];
+
+// Define navigation items to map through
+const NAV_ITEMS = [
+  { id: "menu", label: "Menu", icon: Utensils },
+  { id: "loyalty", label: "Loyalty", icon: CreditCard },
+  { id: "party", label: "Party", icon: PartyPopper },
+  { id: "orders", label: "Orders", icon: ClipboardList, hasNotification: true },
+  { id: "about", label: "About", icon: Info },
 ];
 
 export default function MobileMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [activeNav, setActiveNav] = useState<string>("menu"); // State for bottom nav
   const listRef = useRef<HTMLDivElement>(null);
 
   const filteredMenu = MOCK_MENU.filter((item) => {
@@ -386,32 +397,37 @@ export default function MobileMenu() {
   return (
     <main className="bg-[#ffffff] font-sans h-dvh flex flex-col">
       <div className="max-w-md mx-auto w-full bg-[#fff1e3] h-full flex flex-col relative shadow-2xl">
-        <div className="flex-1 overflow-y-auto pb-24">
+        <div className="flex-1 overflow-y-auto pb-28">
           {/* Top Bar */}
-          <header className="px-6 pt-4 pb-4 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-yellow-800 rounded-sm flex items-center justify-center shadow-sm">
+          <div className="bg-[#fff1e3] w-full h-fit flex justify-between items-center px-6 py-2 ">
+            <div className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm">
+              <User className="w-5 h-5 text-white" />
+            </div>
+            <Image src={"/images/logo.png"} alt="logo" width={90} height={90} />
+            <button className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center relative shadow-sm">
+              <ShoppingCart className="w-5 h-5 text-white" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
+            </button>
+          </div>
+          <header className="px-6 pb-4 flex justify-between items-center">
+            <div className="flex items-center w-full">
+              {/*<div className="w-10 h-10 bg-yellow-500 rounded-sm flex items-center justify-center shadow-sm">
                 <User className="w-5 h-5 text-white" />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-xs text-gray-500 font-medium">
+              </div>*/}
+              <div className="flex flex-col justify-center items-center w-full">
+                {/*<span className="text-xs text-gray-500 font-medium">
                   Location
-                </span>
-                <div className="flex items-center gap-1 cursor-pointer">
-                  <MapPin className="w-4 h-4 text-black" />
-                  <span className="text-sm font-bold text-black">
+                </span>*/}
+                <div className="flex bg-yellow-900 px-4 py-1 rounded-md items-center gap-1 cursor-pointer">
+                  <MapPin className="w-4 h-4 text-white" />
+                  <span className="text-sm font-bold text-white">
                     Saheswari Club, Salipur
                   </span>
-                  <ChevronDown className="w-4 h-4 text-gray-500" />
+                  <ChevronDown className="w-4 h-4 text-whiteitems-center" />
                 </div>
               </div>
             </div>
-            <button className="w-10 h-10 bg-white rounded-md flex items-center justify-center relative shadow-sm">
-              <ShoppingCart className="w-6 h-6 text-gray-400" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-            </button>
           </header>
-
           {/* Popular Dishes */}
           <div ref={listRef}>
             <div className="px-6 mb-4">
@@ -419,39 +435,37 @@ export default function MobileMenu() {
             </div>
             <div className="flex flex-row flex-nowrap gap-4 overflow-x-auto px-6 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
               {featuredMenu
-                // Sort by Rating (Highest to Lowest).
                 .sort((a, b) => b.rating - a.rating)
                 .map((item, index) => {
                   const isDark = index % 2 === 0;
                   return (
                     <div
                       key={item.id}
-                      className={`food-card relative rounded-xl p-6 h-32 w-62 shrink-0 overflow-hidden shadow-sm ${
-                        isDark ? "bg-yellow-500" : "bg-yellow-900"
-                      } text-white ${!item.available ? "opacity-75" : ""}`}
+                      className={`food-card relative rounded-xl h-32 w-62 shrink-0 overflow-hidden shadow-sm text-white ${!item.available ? "opacity-75" : ""}`}
                     >
-                      <div className="relative z-10 flex flex-col justify-center h-full pointer-events-none">
+                      <div className="absolute z-8 bg-linear-0 from-black to-purple-500/0 w-full h-full"></div>
+                      <div className="relative px-4 py-2 z-10 flex flex-col justify-end w-full items-end h-full pointer-events-none">
                         <div className="flex items-center gap-2 mb-1">
                           <DietIcon type={item.type} />
-                          <h3 className="text-xl font-black truncate">
+                          <h3 className="text-sm font-black truncate">
                             {item.name}
                           </h3>
                         </div>
 
-                        <div className="flex items-center gap-4 mt-1">
+                        <div className="flex items-center gap-4">
                           <div className="flex items-center gap-1">
                             <Star
-                              className={`w-4 h-4 fill-current ${isDark ? "text-yellow-800" : "text-yellow-400"}`}
+                              className={`w-4 h-4 fill-current ${isDark ? "text-yellow-400" : "text-yellow-400"}`}
                             />
                             <span className="font-bold text-sm">
                               {item.rating}
                             </span>
                           </div>
                           <div
-                            className={`py-1 px-3 rounded-lg ${isDark ? "bg-yellow-900" : "bg-yellow-400"}`}
+                            className={`py-1 px-3 rounded-lg ${isDark ? "bg-yellow-500" : "bg-yellow-400"}`}
                           >
                             <p
-                              className={`font-extrabold ${isDark ? "text-white" : "text-gray-700"}`}
+                              className={`font-extrabold text-sm ${isDark ? "text-gray-700" : "text-gray-700"}`}
                             >
                               ₹{item.price}/-
                             </p>
@@ -460,7 +474,7 @@ export default function MobileMenu() {
                       </div>
 
                       {/* Featured Item Image */}
-                      <div className="pointer-events-none absolute -right-8 top-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+                      <div className="pointer-events-none absolute -right-0 top-1/2 -translate-y-1/2 w-full h-40 bg-white/10 flex items-center justify-center overflow-hidden">
                         {item.image ? (
                           <img
                             src={item.image}
@@ -488,12 +502,12 @@ export default function MobileMenu() {
                 onClick={() => setActiveCategory(allCategory.slug)}
                 className={`
                   flex items-center justify-center gap-2
-                  rounded-xl font-bold text-sm h-10 px-4
+                  rounded-lg font-bold text-xs h-8 px-4
                   transition-all duration-300 shadow-sm outline-none
                   ${
                     isAllActive
-                      ? "bg-yellow-900 text-white border-2 border-yellow-900"
-                      : "bg-white text-black border border-gray-200"
+                      ? "bg-yellow-500 text-gray-800 border-2 border-yellow-900"
+                      : "bg-white text-black border-2 border-yellow-900"
                   }
                 `}
                 style={{ WebkitTapHighlightColor: "transparent" }}
@@ -501,7 +515,6 @@ export default function MobileMenu() {
                 <span className="text-base leading-none flex items-center justify-center">
                   {allCategory.icon}
                 </span>
-                {/* Dynamically displaying total MOCK_MENU length */}
                 <span>
                   {allCategory.name} ({MOCK_MENU.length})
                 </span>
@@ -592,7 +605,8 @@ export default function MobileMenu() {
         </div>
 
         {/* Remaining Categories Grid (Fixed above Bottom Nav) */}
-        <div className="flex flex-wrap fixed bottom-16 w-full max-w-md justify-center gap-3 px-4 py-2 z-40 bg-gradient-to-t from-[#fff1e3] via-[#fff1e3] to-transparent pt-8">
+        <div className="fixed bottom-0 w-full h-38 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)]"></div>
+        <div className="flex flex-wrap fixed bottom-20 w-full max-w-md justify-center gap-3 px-4 py-2 z-50">
           {otherCategories.map((category) => {
             const isActive = activeCategory === category.slug;
             return (
@@ -621,39 +635,41 @@ export default function MobileMenu() {
           })}
         </div>
 
-        {/* BOTTOM NAVIGATION BAR */}
-        <div className="absolute bottom-0 left-0 w-full bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border-t border-gray-100 z-50">
-          <div className="flex justify-between items-center px-8 py-3">
-            <button className="flex flex-col items-center gap-1">
-              <Utensils className="w-6 h-6 text-yellow-500" />
-              <span className="text-[10px] font-bold text-yellow-500">
-                Menu
-              </span>
-            </button>
-            <button className="flex flex-col items-center gap-1">
-              <CreditCard className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">
-                Loyalty Card
-              </span>
-            </button>
-            <button className="flex flex-col items-center gap-1 relative">
-              <PartyPopper className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">
-                Party Menu
-              </span>
-            </button>
-            <button className="flex flex-col items-center gap-1 relative">
-              {/* Notification Dot */}
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-              <ClipboardList className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">
-                Orders
-              </span>
-            </button>
-            <button className="flex flex-col items-center gap-1">
-              <Info className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">About</span>
-            </button>
+        {/* BOTTOM NAVIGATION BAR (FLOATING PILL DESIGN) */}
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm z-50">
+          <div className="bg-yellow-900 rounded-lg shadow-xl flex justify-between items-center px-2 py-2">
+            {NAV_ITEMS.map((item) => {
+              const isActive = activeNav === item.id;
+              const Icon = item.icon;
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveNav(item.id)}
+                  className={`
+                    relative flex items-center justify-center gap-2 h-10 transition-all duration-300 outline-none
+                    ${isActive ? "bg-white text-[#1a1b26] px-4 rounded-lg" : "text-white w-10 bg-transparent"}
+                  `}
+                  style={{ WebkitTapHighlightColor: "transparent" }}
+                >
+                  <Icon
+                    className={`w-[18px] h-[18px] ${isActive ? "text-[#1a1b26]" : "text-white"}`}
+                    strokeWidth={isActive ? 2.5 : 2}
+                  />
+
+                  {isActive && (
+                    <span className="text-xs font-bold whitespace-nowrap">
+                      {item.label}
+                    </span>
+                  )}
+
+                  {/* Notification Dot */}
+                  {item.hasNotification && !isActive && (
+                    <div className="absolute top-[8px] right-[8px] w-2 h-2 bg-red-500 rounded-full border-[1.5px] border-[#1a1b26]"></div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
