@@ -6,12 +6,14 @@ import { useGSAP } from "@gsap/react";
 import {
   MapPin,
   ChevronDown,
-  Home,
-  Compass,
-  Heart,
   ShoppingCart,
   User,
   Star,
+  Utensils, // NEW
+  CreditCard, // NEW
+  PartyPopper, // NEW
+  Info, // NEW
+  ClipboardList,
 } from "lucide-react";
 
 gsap.registerPlugin(useGSAP);
@@ -38,7 +40,7 @@ interface MenuItem {
 }
 
 const CATEGORIES: Category[] = [
-  { id: "1", name: "Show All Dishes", slug: "all", icon: "🥡" },
+  { id: "1", name: "All Dishes", slug: "all", icon: "🥡" },
   { id: "2", name: "Sandwitch", slug: "sandwitch", icon: "🥪" },
   { id: "3", name: "Burger", slug: "burger", icon: "🍔" },
   { id: "4", name: "Staters", slug: "staters", icon: "🍟" },
@@ -117,7 +119,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.5,
     categorySlug: "sandwitch",
     type: "veg",
-    featured: false,
+    featured: true,
     image: "/images/Chilli_mushroom_sand.jpg",
     available: true,
   },
@@ -129,7 +131,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.7,
     categorySlug: "sandwitch",
     type: "veg",
-    featured: true,
+    featured: false,
     image: "/images/Mushroom_sand.jpg",
     available: true,
   },
@@ -288,7 +290,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.6,
     categorySlug: "drinks",
     type: "veg",
-    featured: false,
+    featured: true,
     image: "/images/drink/blue_angel.jpg",
     available: true,
   },
@@ -300,7 +302,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.7,
     categorySlug: "drinks",
     type: "veg",
-    featured: false,
+    featured: true,
     image: "/images/drink/peach_iced_tea.jpg",
     available: true,
   },
@@ -312,7 +314,7 @@ const MOCK_MENU: MenuItem[] = [
     rating: 4.5,
     categorySlug: "drinks",
     type: "veg",
-    featured: true,
+    featured: false,
     image: "/images/drink/lemon_ice_tea.jpg",
     available: true,
   },
@@ -416,62 +418,64 @@ export default function MobileMenu() {
               <h2 className="text-lg font-bold text-black">Popular Dishes</h2>
             </div>
             <div className="flex flex-row flex-nowrap gap-4 overflow-x-auto px-6 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
-              {featuredMenu.map((item, index) => {
-                const isDark = index % 2 === 0;
-                return (
-                  <div
-                    key={item.id}
-                    className={`food-card relative rounded-xl p-6 h-32 w-72 shrink-0 overflow-hidden shadow-sm ${
-                      isDark ? "bg-yellow-500" : "bg-yellow-900"
-                    } text-white ${!item.available ? "opacity-75" : ""}`}
-                  >
-                    <div className="relative z-10 flex flex-col justify-center h-full pointer-events-none">
-                      <div className="flex items-center gap-2 mb-1">
-                        <DietIcon type={item.type} />
-                        <h3 className="text-xl font-black truncate">
-                          {item.name}
-                        </h3>
-                      </div>
-
-                      <div className="flex items-center gap-4 mt-1">
-                        <div className="flex items-center gap-1">
-                          <Star
-                            className={`w-4 h-4 fill-current ${isDark ? "text-yellow-800" : "text-yellow-400"}`}
-                          />
-                          <span className="font-bold text-sm">
-                            {item.rating}
-                          </span>
+              {featuredMenu
+                // Sort by Rating (Highest to Lowest).
+                .sort((a, b) => b.rating - a.rating)
+                .map((item, index) => {
+                  const isDark = index % 2 === 0;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`food-card relative rounded-xl p-6 h-32 w-62 shrink-0 overflow-hidden shadow-sm ${
+                        isDark ? "bg-yellow-500" : "bg-yellow-900"
+                      } text-white ${!item.available ? "opacity-75" : ""}`}
+                    >
+                      <div className="relative z-10 flex flex-col justify-center h-full pointer-events-none">
+                        <div className="flex items-center gap-2 mb-1">
+                          <DietIcon type={item.type} />
+                          <h3 className="text-xl font-black truncate">
+                            {item.name}
+                          </h3>
                         </div>
-                        <div
-                          className={`py-1 px-3 rounded-lg ${isDark ? "bg-yellow-900" : "bg-yellow-400"}`}
-                        >
-                          <p
-                            className={`font-extrabold ${isDark ? "text-white" : "text-gray-700"}`}
+
+                        <div className="flex items-center gap-4 mt-1">
+                          <div className="flex items-center gap-1">
+                            <Star
+                              className={`w-4 h-4 fill-current ${isDark ? "text-yellow-800" : "text-yellow-400"}`}
+                            />
+                            <span className="font-bold text-sm">
+                              {item.rating}
+                            </span>
+                          </div>
+                          <div
+                            className={`py-1 px-3 rounded-lg ${isDark ? "bg-yellow-900" : "bg-yellow-400"}`}
                           >
-                            ₹{item.price}/-
-                          </p>
+                            <p
+                              className={`font-extrabold ${isDark ? "text-white" : "text-gray-700"}`}
+                            >
+                              ₹{item.price}/-
+                            </p>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Featured Item Image */}
-                    <div className="pointer-events-none absolute -right-8 top-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
-                      {/* We use standard <img> for portability, replace with next/image if desired */}
-                      {item.image ? (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className={`w-full h-full object-cover ${!item.available ? "grayscale" : ""}`}
-                        />
-                      ) : (
-                        <span className="text-xs font-bold opacity-50 text-black">
-                          IMAGE
-                        </span>
-                      )}
+                      {/* Featured Item Image */}
+                      <div className="pointer-events-none absolute -right-8 top-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className={`w-full h-full object-cover ${!item.available ? "grayscale" : ""}`}
+                          />
+                        ) : (
+                          <span className="text-xs font-bold opacity-50 text-black">
+                            IMAGE
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           </div>
 
@@ -497,7 +501,10 @@ export default function MobileMenu() {
                 <span className="text-base leading-none flex items-center justify-center">
                   {allCategory.icon}
                 </span>
-                <span>{allCategory.name}</span>
+                {/* Dynamically displaying total MOCK_MENU length */}
+                <span>
+                  {allCategory.name} ({MOCK_MENU.length})
+                </span>
               </button>
             )}
           </div>
@@ -618,33 +625,34 @@ export default function MobileMenu() {
         <div className="absolute bottom-0 left-0 w-full bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border-t border-gray-100 z-50">
           <div className="flex justify-between items-center px-8 py-3">
             <button className="flex flex-col items-center gap-1">
-              <Home className="w-6 h-6 text-yellow-500" />
+              <Utensils className="w-6 h-6 text-yellow-500" />
               <span className="text-[10px] font-bold text-yellow-500">
-                Home
+                Menu
               </span>
             </button>
             <button className="flex flex-col items-center gap-1">
-              <Compass className="w-6 h-6 text-gray-400" />
+              <CreditCard className="w-6 h-6 text-gray-400" />
               <span className="text-[10px] font-bold text-gray-400">
-                Explore
+                Loyalty Card
               </span>
             </button>
             <button className="flex flex-col items-center gap-1 relative">
-              <Heart className="w-6 h-6 text-gray-400" />
+              <PartyPopper className="w-6 h-6 text-gray-400" />
               <span className="text-[10px] font-bold text-gray-400">
-                Favorites
+                Party Menu
               </span>
             </button>
             <button className="flex flex-col items-center gap-1 relative">
+              {/* Notification Dot */}
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-              <ShoppingCart className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">Cart</span>
+              <ClipboardList className="w-6 h-6 text-gray-400" />
+              <span className="text-[10px] font-bold text-gray-400">
+                Orders
+              </span>
             </button>
             <button className="flex flex-col items-center gap-1">
-              <User className="w-6 h-6 text-gray-400" />
-              <span className="text-[10px] font-bold text-gray-400">
-                Profile
-              </span>
+              <Info className="w-6 h-6 text-gray-400" />
+              <span className="text-[10px] font-bold text-gray-400">About</span>
             </button>
           </div>
         </div>
