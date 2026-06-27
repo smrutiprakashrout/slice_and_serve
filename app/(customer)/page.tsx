@@ -33,6 +33,8 @@ interface MenuItem {
   categorySlug: string;
   type: "veg" | "non-veg";
   featured: boolean;
+  image: string; // NEW: Image URL/Path
+  available: boolean; // NEW: Availability toggle
 }
 
 const CATEGORIES: Category[] = [
@@ -44,48 +46,6 @@ const CATEGORIES: Category[] = [
 ];
 
 const MOCK_MENU: MenuItem[] = [
-  // --- DRINKS ---
-  {
-    id: "d1",
-    name: "Blue Angel",
-    subtitle: "Refreshing mocktail",
-    price: 49,
-    rating: 4.6,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-  },
-  {
-    id: "d2",
-    name: "Peach Ice Tea",
-    subtitle: "Chilled sweet tea",
-    price: 49,
-    rating: 4.7,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-  },
-  {
-    id: "d3",
-    name: "Lemon Ice Tea",
-    subtitle: "Classic citrus tea",
-    price: 49,
-    rating: 4.5,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: true,
-  },
-  {
-    id: "d4",
-    name: "Watermelon Sparkler",
-    subtitle: "Fizzy summer cooler",
-    price: 49,
-    rating: 4.8,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-  },
-
   // --- BURGERS ---
   {
     id: "b1",
@@ -96,6 +56,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "burger",
     type: "non-veg",
     featured: true,
+    image: "/images/burger.jpg",
+    available: true,
   },
 
   // --- SANDWICHES ---
@@ -108,6 +70,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "non-veg",
     featured: true,
+    image: "/images/65_sandwitch.jpg",
+    available: true,
   },
   {
     id: "s2",
@@ -118,6 +82,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "non-veg",
     featured: false,
+    image: "/images/chilli_chicken_sand.jpg",
+    available: true,
   },
   {
     id: "s3",
@@ -128,6 +94,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "non-veg",
     featured: false,
+    image: "/images/chicken_sand.jpg",
+    available: true,
   },
   {
     id: "s4",
@@ -138,6 +106,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "non-veg",
     featured: false,
+    image: "/images/egg_sand.jpg",
+    available: false, // Set to false to demonstrate out-of-stock UI
   },
   {
     id: "s5",
@@ -148,6 +118,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: false,
+    image: "/images/Chilli_mushroom_sand.jpg",
+    available: true,
   },
   {
     id: "s6",
@@ -158,6 +130,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: true,
+    image: "/images/Mushroom_sand.jpg",
+    available: true,
   },
   {
     id: "s7",
@@ -168,6 +142,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: false,
+    image: "/images/cheese_and_corn_sand.jpg",
+    available: true,
   },
   {
     id: "s8",
@@ -178,6 +154,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: false,
+    image: "/images/Veg_Sand.jpg",
+    available: true,
   },
   {
     id: "s9",
@@ -188,6 +166,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: false,
+    image: "/images/nutella_sandwich.jpg",
+    available: true,
   },
   {
     id: "s10",
@@ -198,6 +178,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "sandwitch",
     type: "veg",
     featured: false,
+    image: "/images/Panner_sandwitch.jpg",
+    available: true,
   },
 
   // --- STARTERS ---
@@ -210,6 +192,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "non-veg",
     featured: true,
+    image: "/images/snacks/Chicken_Lollipop.jpg",
+    available: true,
   },
   {
     id: "st2",
@@ -220,6 +204,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "non-veg",
     featured: false,
+    image: "/images/snacks/chicken_kabab.jpg",
+    available: true,
   },
   {
     id: "st3",
@@ -230,6 +216,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "non-veg",
     featured: false,
+    image: "/images/snacks/finger_chicken.jpg",
+    available: true,
   },
   {
     id: "st4",
@@ -240,6 +228,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "non-veg",
     featured: false,
+    image: "/images/snacks/chicken_pocoda.jpg",
+    available: true,
   },
   {
     id: "st5",
@@ -250,6 +240,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "veg",
     featured: false,
+    image: "/images/snacks/veg/finger_panner.jpg",
+    available: true,
   },
   {
     id: "st6",
@@ -260,6 +252,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "veg",
     featured: false,
+    image: "/images/snacks/veg/paneer_kabab.jpg",
+    available: true,
   },
   {
     id: "st7",
@@ -270,6 +264,8 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "veg",
     featured: false,
+    image: "/images/snacks/veg/Crispy_Corn.jpg",
+    available: true,
   },
   {
     id: "st8",
@@ -280,6 +276,57 @@ const MOCK_MENU: MenuItem[] = [
     categorySlug: "staters",
     type: "veg",
     featured: false,
+    image: "/images/snacks/veg/Fries.jpg",
+    available: true,
+  },
+  // --- DRINKS ---
+  {
+    id: "d1",
+    name: "Blue Angel",
+    subtitle: "Refreshing mocktail",
+    price: 49,
+    rating: 4.6,
+    categorySlug: "drinks",
+    type: "veg",
+    featured: false,
+    image: "/images/drink/blue_angel.jpg",
+    available: true,
+  },
+  {
+    id: "d2",
+    name: "Peach Ice Tea",
+    subtitle: "Chilled sweet tea",
+    price: 49,
+    rating: 4.7,
+    categorySlug: "drinks",
+    type: "veg",
+    featured: false,
+    image: "/images/drink/peach_iced_tea.jpg",
+    available: true,
+  },
+  {
+    id: "d3",
+    name: "Lemon Ice Tea",
+    subtitle: "Classic citrus tea",
+    price: 49,
+    rating: 4.5,
+    categorySlug: "drinks",
+    type: "veg",
+    featured: true,
+    image: "/images/drink/lemon_ice_tea.jpg",
+    available: true,
+  },
+  {
+    id: "d4",
+    name: "Watermelon Sparkler",
+    subtitle: "Fizzy summer cooler",
+    price: 49,
+    rating: 4.8,
+    categorySlug: "drinks",
+    type: "veg",
+    featured: false,
+    image: "/images/drink/Watermelon_Sparkling.png",
+    available: false, // Set to false to demonstrate out-of-stock UI
   },
 ];
 
@@ -376,7 +423,7 @@ export default function MobileMenu() {
                     key={item.id}
                     className={`food-card relative rounded-xl p-6 h-32 w-72 shrink-0 overflow-hidden shadow-sm ${
                       isDark ? "bg-yellow-500" : "bg-yellow-900"
-                    } text-white`}
+                    } text-white ${!item.available ? "opacity-75" : ""}`}
                   >
                     <div className="relative z-10 flex flex-col justify-center h-full pointer-events-none">
                       <div className="flex items-center gap-2 mb-1">
@@ -406,10 +453,21 @@ export default function MobileMenu() {
                         </div>
                       </div>
                     </div>
-                    <div className="pointer-events-none absolute -right-8 top-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/10 flex items-center justify-center">
-                      <span className="text-xs font-bold opacity-50 text-black">
-                        IMAGE
-                      </span>
+
+                    {/* Featured Item Image */}
+                    <div className="pointer-events-none absolute -right-8 top-1/2 -translate-y-1/2 w-40 h-40 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+                      {/* We use standard <img> for portability, replace with next/image if desired */}
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className={`w-full h-full object-cover ${!item.available ? "grayscale" : ""}`}
+                        />
+                      ) : (
+                        <span className="text-xs font-bold opacity-50 text-black">
+                          IMAGE
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -444,27 +502,47 @@ export default function MobileMenu() {
             )}
           </div>
 
-          {/* Categorized Menu Grid (Replaces the placeholder text) */}
+          {/* Categorized Menu Grid */}
           <div className="px-6 pb-36">
             <div className="grid grid-cols-2 gap-4">
               {filteredMenu.map((item) => (
                 <div
                   key={`menu-${item.id}`}
-                  className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full"
+                  className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full relative"
                 >
                   {/* Image Header Area */}
-                  <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0">
-                    <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
-                      Image
-                    </span>
+                  <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
+                    {item.image ? (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
+                        Image
+                      </span>
+                    )}
+
                     {/* Floating Veg/Non-Veg Icon */}
-                    <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm">
+                    <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm z-10">
                       <DietIcon type={item.type} />
                     </div>
+
+                    {/* Out of stock visual overlay on image */}
+                    {!item.available && (
+                      <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] flex items-center justify-center z-20">
+                        <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-md shadow-sm">
+                          Out of Stock
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Content Area */}
-                  <div className="p-3 flex flex-col flex-1 justify-between">
+                  <div
+                    className={`p-3 flex flex-col flex-1 justify-between ${!item.available ? "opacity-75" : ""}`}
+                  >
                     <div>
                       <h3 className="font-semibold text-[15px] text-gray-900 leading-tight mb-[2px]">
                         {item.name}
@@ -479,8 +557,15 @@ export default function MobileMenu() {
                       <span className="font-extrabold text-sm text-gray-900">
                         ₹{item.price}
                       </span>
-                      <button className="bg-[#fdc647] text-black font-bold text-xs px-4 py-1.5 rounded-lg hover:bg-yellow-400 transition-colors shadow-sm active:scale-95">
-                        Buy
+                      <button
+                        disabled={!item.available}
+                        className={`font-bold text-xs px-4 py-1.5 rounded-lg transition-colors shadow-sm active:scale-95 ${
+                          item.available
+                            ? "bg-[#fdc647] text-black hover:bg-yellow-400"
+                            : "bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"
+                        }`}
+                      >
+                        {item.available ? "Buy" : "Sold Out"}
                       </button>
                     </div>
                   </div>
