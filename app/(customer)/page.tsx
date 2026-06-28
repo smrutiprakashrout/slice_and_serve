@@ -378,35 +378,7 @@ export default function MobileMenu() {
       <div className="max-w-md mx-auto w-full bg-[#fff1e3] h-full flex flex-col relative shadow-2xl">
         <div className="flex-1 overflow-y-auto pb-28">
           {/* Top Bar */}
-          <div className="bg-[#fff1e3] w-full h-fit flex justify-between items-center px-6 py-2 ">
-            <div className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm">
-              <User className="w-5 h-5 text-white" />
-            </div>
-            <Image src={"/images/logo.png"} alt="logo" width={90} height={90} />
-            <button className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center relative shadow-sm">
-              <ShoppingCart className="w-5 h-5 text-white" />
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border border-white" />
-            </button>
-          </div>
-          <header className="px-6 pb-4 flex justify-between items-center">
-            <div className="flex items-center w-full">
-              {/*<div className="w-10 h-10 bg-yellow-500 rounded-sm flex items-center justify-center shadow-sm">
-                <User className="w-5 h-5 text-white" />
-              </div>*/}
-              <div className="flex flex-col justify-center items-center w-full">
-                {/*<span className="text-xs text-gray-500 font-medium">
-                  Location
-                </span>*/}
-                <div className="flex bg-yellow-900 px-4 py-1 rounded-md items-center gap-1 cursor-pointer">
-                  <MapPin className="w-4 h-4 text-white" />
-                  <span className="text-sm font-bold text-white">
-                    Saheswari Club, Salipur
-                  </span>
-                  <ChevronDown className="w-4 h-4 text-whiteitems-center" />
-                </div>
-              </div>
-            </div>
-          </header>
+
           {/* Popular Dishes */}
           <div ref={listRef}>
             <div className="px-6 mb-4">

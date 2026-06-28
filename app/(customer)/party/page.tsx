@@ -244,28 +244,23 @@ export default function PartyMenuPage() {
     >
       <div className="max-w-md mx-auto w-full h-full flex flex-col relative z-10">
         {/* Top Header */}
-        <header className="px-6 pt-2 pb-4 flex flex-col justify-center items-center w-full z-50 gap-2">
+        <header className="px-6 pb-4 flex flex-col justify-center items-center w-full z-50 gap-2">
           {/* Shop Logo */}
-          <img
-            src="/logo2.svg"
-            alt="Shop Logo"
-            className="h-10 w-auto drop-shadow-sm"
-          />
-          <span className="text-sm font-bold tracking-widest uppercase text-black/80">
-            Party Order
+          <span className="text-black/60 text-[11px] font-extrabold tracking-widest uppercase">
+            Party Order Menu
           </span>
         </header>
 
         {/* Dynamic Slide Content */}
         <div
           ref={slideRef}
-          className="flex-1 flex flex-col w-full h-full justify-center pb-12 relative"
+          className={`flex flex-col w-full h-[60vh] justify-center mb-6 relative`}
         >
           {/* Floating Image Area with Dynamic Swipe Hints */}
-          <div className="flex-1 flex items-center justify-between px-2 relative w-full h-[40vh]">
+          <div className="flex items-center h-[40vh] justify-between px-2 relative w-full ]">
             {/* LEFT Swipe Hint (Hidden if on first item) */}
             <div
-              className={`flex flex-col items-center transition-opacity duration-300 ${isFirstItem ? "opacity-0" : "opacity-100"}`}
+              className={`flex flex-col  items-center transition-opacity duration-300 ${isFirstItem ? "opacity-0" : "opacity-100"}`}
             >
               <ChevronsLeft className="swipe-hint-left w-8 h-8 text-black/30" />
             </div>
@@ -324,11 +319,11 @@ export default function PartyMenuPage() {
               {activeItem.subtitle}
             </p>
 
-            <div className="mt-2 mb-8 w-full">
+            {/*<div className="mt-2 mb-8 w-full">
               <button className="bg-black text-white w-full font-black text-lg px-8 py-4 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] active:scale-95 transition-transform">
                 Add to Party List
               </button>
-            </div>
+            </div>*/}
           </div>
         </div>
 

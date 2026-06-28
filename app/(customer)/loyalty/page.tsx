@@ -40,7 +40,7 @@ const LOYALTY: LoyaltyData = {
   },
   brand: {
     name: "Slice and Serve",
-    tagline: "LOYALTY MEMBER ✓",
+    tagline: "LOYALTY MEMBER CARD",
     logo: "/images/logo.png",
   },
 };
@@ -412,9 +412,9 @@ export default function LoyaltyPage() {
       <main className="bg-[#fff1e3] font-sans min-h-dvh">
         <div className="max-w-md mx-auto w-full bg-[#fff1e3] min-h-dvh flex flex-col relative shadow-2xl pb-32">
           {/* ── Header ───────────────────────────────────────────────── */}
-          <div className="px-6 pt-6 pb-10">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner">
+          <div className="px-6 pb-10">
+            <div className="flex justify-center items-center">
+              {/*<div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner">
                 <Image
                   src={LOYALTY.brand.logo}
                   alt="logo"
@@ -422,12 +422,12 @@ export default function LoyaltyPage() {
                   height={36}
                   className="object-contain"
                 />
-              </div>
+              </div>*/}
               <div>
-                <p className="text-black font-black text-base leading-tight">
+                {/*<p className="text-black font-black text-base leading-tight">
                   {LOYALTY.brand.name}
-                </p>
-                <p className="text-black/60 text-[11px] font-semibold tracking-widest uppercase">
+                </p>*/}
+                <p className="text-black/60 text-[11px] font-extrabold tracking-widest uppercase">
                   {LOYALTY.brand.tagline}
                 </p>
               </div>
@@ -444,7 +444,7 @@ export default function LoyaltyPage() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-[#8B1A1A] tracking-widest uppercase mb-0.5">
+              <p className="text-[10px] font-black text-yellow-500 tracking-widest uppercase mb-0.5">
                 {complete ? "🎉 Ready to claim!" : "Your next treat"}
               </p>
               <h3 className="font-black text-gray-900 text-sm leading-tight truncate">
@@ -475,7 +475,7 @@ export default function LoyaltyPage() {
 
             <p className="text-center text-sm text-gray-500 mt-4">
               {complete ? (
-                <span className="font-bold text-yellow-900">
+                <span className="font-bold text-yellow-500">
                   🎉 All stamps collected!
                 </span>
               ) : (
@@ -497,7 +497,7 @@ export default function LoyaltyPage() {
                 font-black text-sm tracking-wide transition-all duration-300
                 ${
                   complete
-                    ? "bg-yellow-900 text-white shadow-lg shadow-yellow-900/30 animate-pulse-glow active:scale-95"
+                    ? "bg-yellow-500 text-white shadow-lg shadow-yellow-900/30 animate-pulse-glow active:scale-95"
                     : "bg-[#f5e6d0] text-[#c9a87c] cursor-not-allowed"
                 }
               `}
