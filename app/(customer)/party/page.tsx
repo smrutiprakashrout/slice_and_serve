@@ -237,14 +237,14 @@ export default function PartyMenuPage() {
 
   return (
     <main
-      className="bg-[#fff1e3] text-black font-sans h-dvh w-full overflow-hidden flex flex-col items-center justify-center relative touch-none select-none"
+      className="bg-[#fff1e3] pt-14 text-black font-sans h-dvh w-full overflow-hidden flex flex-col items-center justify-center relative select-none"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="max-w-md mx-auto w-full h-full flex flex-col relative z-10">
+      <div className="max-w-md mx-auto w-full h-full flex flex-col relative z-50 mt-12">
         {/* Top Header */}
-        <header className="px-6 pb-4 flex flex-col justify-center items-center w-full z-50 gap-2">
+        <header className="px-6 pb-4 flex flex-col justify-center items-center w-full relative gap-2">
           {/* Shop Logo */}
           <span className="text-black/60 text-[11px] font-extrabold tracking-widest uppercase">
             Party Order Menu
@@ -303,7 +303,7 @@ export default function PartyMenuPage() {
             {/* Rating & Veg/Non-Veg Label */}
             <div className="flex items-center justify-between w-full mb-1">
               <div className="bg-black/10 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 border border-black/10">
-                <Star className="w-4 h-4 text-black fill-current" />
+                <Star className="w-4 h-4 text-yellow-500 fill-current" />
                 <span className="text-sm font-bold text-black">
                   {activeItem.rating}
                 </span>

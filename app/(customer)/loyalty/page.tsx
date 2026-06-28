@@ -412,7 +412,7 @@ export default function LoyaltyPage() {
       <main className="bg-[#fff1e3] font-sans min-h-dvh">
         <div className="max-w-md mx-auto w-full bg-[#fff1e3] min-h-dvh flex flex-col relative shadow-2xl pb-32">
           {/* ── Header ───────────────────────────────────────────────── */}
-          <div className="px-6 pb-10">
+          <div className="px-6 pb-10 mt-16">
             <div className="flex justify-center items-center">
               {/*<div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner">
                 <Image

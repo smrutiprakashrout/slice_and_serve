@@ -375,7 +375,7 @@ export default function MobileMenu() {
 
   return (
     <main className="bg-[#ffffff] font-sans h-dvh flex flex-col">
-      <div className="max-w-md mx-auto w-full bg-[#fff1e3] h-full flex flex-col relative shadow-2xl">
+      <div className="max-w-md mx-auto w-full bg-[#fff1e3] mt-26 h-full flex flex-col relative shadow-2xl">
         <div className="flex-1 overflow-y-auto pb-28">
           {/* Top Bar */}
 

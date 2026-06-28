@@ -388,7 +388,7 @@ export default function AboutPage() {
 
         {/* Logo */}
 
-        <div className="relative z-10">
+        <div className="relative z-10 mt-26">
           <div className="rounded-2xl w-full h-[30vh] overflow-hidden">
             <Image
               src="/images/shop.png"
