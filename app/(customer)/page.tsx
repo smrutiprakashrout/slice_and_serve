@@ -4,18 +4,7 @@ import { useState, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Image from "next/image";
-import {
-  MapPin,
-  ChevronDown,
-  ShoppingCart,
-  User,
-  Star,
-  Utensils,
-  CreditCard,
-  PartyPopper,
-  Info,
-  ClipboardList,
-} from "lucide-react";
+import { MapPin, ChevronDown, ShoppingCart, User, Star } from "lucide-react";
 
 gsap.registerPlugin(useGSAP);
 
@@ -333,18 +322,8 @@ const MOCK_MENU: MenuItem[] = [
   },
 ];
 
-// Define navigation items to map through
-const NAV_ITEMS = [
-  { id: "menu", label: "Menu", icon: Utensils },
-  { id: "loyalty", label: "Loyalty", icon: CreditCard },
-  { id: "party", label: "Party", icon: PartyPopper },
-  { id: "orders", label: "Orders", icon: ClipboardList, hasNotification: true },
-  { id: "about", label: "About", icon: Info },
-];
-
 export default function MobileMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const [activeNav, setActiveNav] = useState<string>("menu"); // State for bottom nav
   const listRef = useRef<HTMLDivElement>(null);
 
   const filteredMenu = MOCK_MENU.filter((item) => {
@@ -633,44 +612,6 @@ export default function MobileMenu() {
               </button>
             );
           })}
-        </div>
-
-        {/* BOTTOM NAVIGATION BAR (FLOATING PILL DESIGN) */}
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm z-50">
-          <div className="bg-yellow-900 rounded-lg shadow-xl flex justify-between items-center px-2 py-2">
-            {NAV_ITEMS.map((item) => {
-              const isActive = activeNav === item.id;
-              const Icon = item.icon;
-
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveNav(item.id)}
-                  className={`
-                    relative flex items-center justify-center gap-2 h-10 transition-all duration-300 outline-none
-                    ${isActive ? "bg-white text-[#1a1b26] px-4 rounded-lg" : "text-white w-10 bg-transparent"}
-                  `}
-                  style={{ WebkitTapHighlightColor: "transparent" }}
-                >
-                  <Icon
-                    className={`w-[18px] h-[18px] ${isActive ? "text-[#1a1b26]" : "text-white"}`}
-                    strokeWidth={isActive ? 2.5 : 2}
-                  />
-
-                  {isActive && (
-                    <span className="text-xs font-bold whitespace-nowrap">
-                      {item.label}
-                    </span>
-                  )}
-
-                  {/* Notification Dot */}
-                  {item.hasNotification && !isActive && (
-                    <div className="absolute top-[8px] right-[8px] w-2 h-2 bg-red-500 rounded-full border-[1.5px] border-[#1a1b26]"></div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
     </main>
