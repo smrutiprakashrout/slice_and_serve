@@ -201,125 +201,7 @@ export default function AboutPage() {
   const statsRef = useRef<HTMLDivElement>(null);
   const faqOpenRef = useRef<number | null>(null);
 
-  // ── GSAP Animations ──
-  useGSAP(
-    () => {
-      // Hero entrance
-      const heroTl = gsap.timeline();
-      heroTl
-        .from(".hero-label", {
-          y: 20,
-          opacity: 0,
-          duration: 0.6,
-          ease: "power3.out",
-        })
-        .from(
-          ".hero-title",
-          { y: 40, opacity: 0, duration: 0.8, ease: "power3.out" },
-          "-=0.3",
-        )
-        .from(
-          ".hero-tagline",
-          { y: 24, opacity: 0, duration: 0.6, ease: "power2.out" },
-          "-=0.4",
-        )
-        .from(
-          ".hero-badges",
-          { y: 16, opacity: 0, duration: 0.5, ease: "power2.out" },
-          "-=0.3",
-        )
-        .from(".hero-scroll", { opacity: 0, duration: 0.4 }, "-=0.1");
-
-      // Ticker infinite scroll
-      const tickerEl = tickerRef.current;
-      if (tickerEl) {
-        const totalWidth = tickerEl.scrollWidth / 2;
-        gsap.to(tickerEl, {
-          x: -totalWidth,
-          duration: 28,
-          ease: "none",
-          repeat: -1,
-        });
-      }
-
-      // Stat counters
-      const statEls = document.querySelectorAll(".stat-number");
-      ScrollTrigger.create({
-        trigger: statsRef.current,
-        start: "top 80%",
-        once: true,
-        onEnter: () => {
-          statEls.forEach((el, i) => {
-            const target = STATS[i].value;
-            gsap.from(
-              { val: 0 },
-              {
-                val: target,
-                duration: 1.8,
-                ease: "power2.out",
-                delay: i * 0.12,
-                onUpdate: function () {
-                  el.textContent = Math.round(
-                    this.targets()[0].val,
-                  ).toLocaleString();
-                },
-              },
-            );
-          });
-        },
-      });
-
-      // Scroll-triggered section reveals
-      gsap.utils.toArray<Element>(".reveal-up").forEach((el, i) => {
-        gsap.from(el, {
-          scrollTrigger: { trigger: el, start: "top 88%", once: true },
-          y: 36,
-          opacity: 0,
-          duration: 0.65,
-          ease: "power3.out",
-          delay: (i % 3) * 0.08,
-        });
-      });
-
-      gsap.utils.toArray<Element>(".reveal-left").forEach((el) => {
-        gsap.from(el, {
-          scrollTrigger: { trigger: el, start: "top 88%", once: true },
-          x: -28,
-          opacity: 0,
-          duration: 0.6,
-          ease: "power2.out",
-        });
-      });
-
-      // Stagger card grids
-      gsap.utils.toArray<Element>(".stagger-parent").forEach((parent) => {
-        const children = parent.querySelectorAll(".stagger-child");
-        gsap.from(children, {
-          scrollTrigger: { trigger: parent, start: "top 85%", once: true },
-          y: 30,
-          opacity: 0,
-          duration: 0.55,
-          stagger: 0.1,
-          ease: "power2.out",
-        });
-      });
-
-      // Hygiene checklist items
-      gsap.utils.toArray<Element>(".hygiene-item").forEach((el, i) => {
-        gsap.from(el, {
-          scrollTrigger: { trigger: el, start: "top 90%", once: true },
-          x: -20,
-          opacity: 0,
-          duration: 0.45,
-          delay: i * 0.06,
-          ease: "power2.out",
-        });
-      });
-    },
-    { scope: containerRef },
-  );
-
-  // FAQ accordion state outside GSAP
+  // FAQ refs & toggle — declared before useGSAP so they're available in scope
   const faqRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const toggleFaq = (index: number) => {
@@ -354,6 +236,115 @@ export default function AboutPage() {
       faqOpenRef.current = index;
     }
   };
+
+  // ── GSAP Animations ──
+  useGSAP(
+    () => {
+      // Hero entrance — note: no .hero-label element exists in the JSX,
+      // so we start the timeline from .hero-title directly
+      const heroTl = gsap.timeline();
+      heroTl
+        .from(".hero-title", {
+          y: 40,
+          opacity: 0,
+          duration: 0.8,
+          ease: "power3.out",
+        })
+        .from(
+          ".hero-tagline",
+          { y: 24, opacity: 0, duration: 0.6, ease: "power2.out" },
+          "-=0.4",
+        )
+        .from(
+          ".hero-badges",
+          { y: 16, opacity: 0, duration: 0.5, ease: "power2.out" },
+          "-=0.3",
+        )
+        .from(".hero-scroll", { opacity: 0, duration: 0.4 }, "-=0.1");
+      // Ticker infinite scroll
+      const tickerEl = tickerRef.current;
+      if (tickerEl) {
+        const totalWidth = tickerEl.scrollWidth / 2;
+        gsap.to(tickerEl, {
+          x: -totalWidth,
+          duration: 28,
+          ease: "none",
+          repeat: -1,
+        });
+      }
+      // Stat counters
+      const statEls = document.querySelectorAll(".stat-number");
+      ScrollTrigger.create({
+        trigger: statsRef.current,
+        start: "top 80%",
+        once: true,
+        onEnter: () => {
+          statEls.forEach((el, i) => {
+            const target = STATS[i].value;
+            gsap.from(
+              { val: 0 },
+              {
+                val: target,
+                duration: 1.8,
+                ease: "power2.out",
+                delay: i * 0.12,
+                onUpdate: function () {
+                  el.textContent = Math.round(
+                    this.targets()[0].val,
+                  ).toLocaleString();
+                },
+              },
+            );
+          });
+        },
+      });
+      //     // Scroll-triggered section reveals
+      gsap.utils.toArray<Element>(".reveal-up").forEach((el, i) => {
+        gsap.from(el, {
+          scrollTrigger: { trigger: el, start: "top 88%", once: true },
+          y: 36,
+          opacity: 0,
+          duration: 0.65,
+          ease: "power3.out",
+          delay: (i % 3) * 0.08,
+        });
+      });
+      gsap.utils.toArray<Element>(".reveal-left").forEach((el) => {
+        gsap.from(el, {
+          scrollTrigger: { trigger: el, start: "top 88%", once: true },
+          x: -28,
+          opacity: 0,
+          duration: 0.6,
+          ease: "power2.out",
+        });
+      });
+      //     // Stagger card grids
+      gsap.utils.toArray<Element>(".stagger-parent").forEach((parent) => {
+        const children = parent.querySelectorAll(".stagger-child");
+        gsap.from(children, {
+          scrollTrigger: { trigger: parent, start: "top 85%", once: true },
+          y: 30,
+          opacity: 0,
+          duration: 0.55,
+          stagger: 0.1,
+          ease: "power2.out",
+        });
+      });
+      // Hygiene checklist items
+      gsap.utils.toArray<Element>(".hygiene-item").forEach((el, i) => {
+        gsap.from(el, {
+          scrollTrigger: { trigger: el, start: "top 90%", once: true },
+          x: -20,
+          opacity: 0,
+          duration: 0.45,
+          delay: i * 0.06,
+          ease: "power2.out",
+        });
+      });
+      // -----------
+    },
+    { scope: containerRef },
+  );
 
   return (
     <div
@@ -474,8 +465,8 @@ export default function AboutPage() {
           What we stand for
         </h2>
         <p className="reveal-up font-body text-sm text-[#3d1a00]/60 mb-8 leading-relaxed">
-          These aren't just words on a wall — they're the decisions we make in
-          the kitchen every single day.
+          These aren&apos;t just words on a wall — they&apos;re the decisions we
+          make in the kitchen every single day.
         </p>
 
         <div className="stagger-parent grid grid-cols-1 gap-4">
@@ -699,7 +690,7 @@ export default function AboutPage() {
       <section className="px-6 py-10">
         <SectionLabel>Customer Love</SectionLabel>
         <h2 className="reveal-up font-display text-3xl font-bold leading-tight mb-2">
-          Don't take our
+          Don&apos;t take our
           <br />
           word for it
         </h2>
@@ -725,7 +716,7 @@ export default function AboutPage() {
                 <StarRating rating={review.rating} />
               </div>
               <p className="font-body text-sm text-[#3d1a00]/70 leading-relaxed">
-                "{review.text}"
+                &quot;{review.text}&quot;
               </p>
             </div>
           ))}
@@ -868,8 +859,8 @@ export default function AboutPage() {
             Hungry yet?
           </h2>
           <p className="text-[#3d1a00]/70 text-sm mb-8 leading-relaxed">
-            Order online, visit us, or just follow along — we'd love to feed
-            you.
+            Order online, visit us, or just follow along — we&apos;d love to
+            feed you.
           </p>
 
           <div className="space-y-3">

@@ -77,9 +77,11 @@ function Stamp({
           ${animateIn && filled ? "animate-stamp" : ""}
         `}
       >
-        <img
+        <Image
           src="/logo.svg"
           alt="stamp"
+          width={100}
+          height={100}
           className={`
             ${logoSize} object-contain
             transition-all duration-500 -rotate-45
@@ -178,7 +180,7 @@ function RedeemQRCode({ value }: { value: string }) {
   return (
     <div className="flex flex-col items-center gap-3">
       {/* Outer glow ring */}
-      <div className="p-1 rounded-3xl bg-gradient-to-br from-yellow-900/20 to-yellow-700/10">
+      <div className="p-1 rounded-3xl bg-linear-to-br from-yellow-900/20 to-yellow-700/10">
         <div className="bg-white p-4 rounded-2xl shadow-xl border-2 border-yellow-900/10">
           {/* Logo watermark centred over QR */}
           <div className="relative">
@@ -197,9 +199,11 @@ function RedeemQRCode({ value }: { value: string }) {
             {/* Centre logo badge */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center border-2 border-yellow-900/20">
-                <img
+                <Image
                   src="/logo.svg"
                   alt="logo"
+                  width={100}
+                  height={100}
                   className="w-7 h-7 object-contain"
                 />
               </div>
@@ -265,7 +269,7 @@ function RedeemModal({
   onRedeemed: () => void; // called when admin "scans" → resets card
 }) {
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center">
+    <div className="fixed inset-0 z-100 flex items-end justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
@@ -437,9 +441,11 @@ export default function LoyaltyPage() {
           {/* ── Reward Preview ───────────────────────────────────────── */}
           <div className="mx-5 -mt-5 bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-[#f0d9b5] flex items-center gap-4 p-4 z-10">
             <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#f5e6d0] shrink-0">
-              <img
+              <Image
                 src={LOYALTY.reward.image}
                 alt={LOYALTY.reward.title}
+                width={100}
+                height={100}
                 className="w-full h-full object-cover"
               />
             </div>

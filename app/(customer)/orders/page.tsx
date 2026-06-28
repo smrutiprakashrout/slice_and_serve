@@ -260,9 +260,11 @@ function OrderCard({
         <div className="flex gap-3">
           {/* Image */}
           <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#f5e6d0] shrink-0 relative">
-            <img
+            <Image
               src={item.image}
               alt={item.name}
+              width={100}
+              height={100}
               className="w-full h-full object-cover"
             />
           </div>
@@ -331,9 +333,11 @@ function HistoryCard({ item }: { item: OrderItem }) {
 
       <div className="p-4 flex gap-3 items-center">
         <div className="w-14 h-14 rounded-xl overflow-hidden bg-[#f5e6d0] shrink-0 grayscale-[30%]">
-          <img
+          <Image
             src={item.image}
             alt={item.name}
+            width={100}
+            height={100}
             className="w-full h-full object-cover"
           />
         </div>

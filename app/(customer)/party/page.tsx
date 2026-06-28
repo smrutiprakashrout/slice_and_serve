@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import Image from "next/image";
 import {
   ChevronLeft,
   ChevronRight,
@@ -266,9 +267,11 @@ export default function PartyMenuPage() {
             </div>
 
             {/* The Food PNG */}
-            <img
+            <Image
               ref={imageRef}
               src={activeItem.image}
+              width={100}
+              height={100}
               alt={activeItem.name}
               className="w-64 h-64 sm:w-72 sm:h-72 object-contain drop-shadow-2xl z-10"
               style={{
@@ -328,7 +331,7 @@ export default function PartyMenuPage() {
         </div>
 
         {/* Desktop Controls Bottom */}
-        <div className="absolute bottom-6 left-0 w-full flex flex-col items-center justify-center z-50 pointer-events-none hidden md:flex">
+        <div className="absolute bottom-6 left-0 w-full flex-col items-center justify-center z-50 pointer-events-none hidden md:flex">
           <div className="flex gap-4 pointer-events-auto">
             <button
               onClick={handlePrev}

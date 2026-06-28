@@ -324,32 +324,32 @@ const MOCK_MENU: MenuItem[] = [
 
 export default function MobileMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  const listRef = useRef<HTMLDivElement>(null);
+  // const listRef = useRef<HTMLDivElement>(null);
 
   const filteredMenu = MOCK_MENU.filter((item) => {
     if (activeCategory === "all") return true;
     return item.categorySlug === activeCategory;
   });
 
-  const featuredMenu = MOCK_MENU.filter((item) => item.featured === true);
+  // const featuredMenu = MOCK_MENU.filter((item) => item.featured === true);
 
-  useGSAP(
-    () => {
-      gsap.fromTo(
-        ".food-card",
-        { x: 30, opacity: 0 },
-        {
-          x: 0,
-          opacity: 1,
-          duration: 0.4,
-          stagger: 0.1,
-          ease: "power2.out",
-          clearProps: "all",
-        },
-      );
-    },
-    { dependencies: [], scope: listRef },
-  );
+  // useGSAP(
+  //   () => {
+  //     gsap.fromTo(
+  //       ".food-card",
+  //       { x: 30, opacity: 0 },
+  //       {
+  //         x: 0,
+  //         opacity: 1,
+  //         duration: 0.4,
+  //         stagger: 0.1,
+  //         ease: "power2.out",
+  //         clearProps: "all",
+  //       },
+  //     );
+  //   },
+  //   { dependencies: [], scope: listRef },
+  // );
 
   const allCategory = CATEGORIES.find((c) => c.slug === "all");
   const otherCategories = CATEGORIES.filter((c) => c.slug !== "all");
@@ -484,9 +484,11 @@ export default function MobileMenu() {
                   {/* Image Header Area */}
                   <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
                     {item.image ? (
-                      <img
+                      <Image
                         src={item.image}
                         alt={item.name}
+                        width={100}
+                        height={100}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -558,7 +560,7 @@ export default function MobileMenu() {
         {/* Remaining Categories Grid (Fixed above Bottom Nav) */}
         <div className="fixed bottom-0 w-full h-42 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)] flex justify-center">
           <p className="text-black/50 font-medium text-xs p-2">
-            Whats on your mind pick one item to fliter the menu
+            Whats on your mind pick one item to fliter
           </p>
         </div>
 

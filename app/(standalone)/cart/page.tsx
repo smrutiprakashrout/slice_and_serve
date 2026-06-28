@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import Image from "next/image";
 import {
   X,
   Info,
@@ -180,7 +181,7 @@ export default function CartPage() {
       setPromoError(true);
       setPromoSuccess(false);
       gsap.to(".promo-input-wrap", {
-        x: [-6, 6, -5, 5, 0],
+        keyframes: [{ x: -6 }, { x: 6 }, { x: -5 }, { x: 5 }, { x: 0 }],
         duration: 0.35,
         ease: "none",
       });
@@ -213,7 +214,7 @@ export default function CartPage() {
           Your cart is empty
         </h2>
         <p className="text-sm text-[#2a1800]/50 mb-8 leading-relaxed">
-          Looks like you haven't added anything yet. Head back to the menu!
+          Looks like you haven&apos;t added anything yet. Head back to the menu!
         </p>
         <button
           onClick={() => router.back()}
@@ -268,8 +269,10 @@ export default function CartPage() {
               <div className="flex">
                 {/* Image — bleeds to left edge */}
                 <div className="w-24 h-28 shrink-0 relative overflow-hidden bg-[#f5e6d0]">
-                  <img
+                  <Image
                     src={item.image}
+                    width={100}
+                    height={100}
                     alt={item.name}
                     className="w-full h-full object-cover"
                   />
