@@ -374,17 +374,17 @@ export default function AboutPage() {
         className="relative min-h-[70vh] flex flex-col justify-end px-6 pt-0 pb-10 overflow-hidden"
       >
         {/* Background texture layer */}
-        <div
+        {/*<div
           className="absolute inset-0 opacity-[0.06]"
           style={{
             backgroundImage:
               "radial-gradient(circle at 1px 1px, #fff1e3 1px, transparent 0)",
             backgroundSize: "24px 24px",
           }}
-        />
+        />*/}
         {/* Amber glow blob */}
-        <div className="absolute top-8 right-0 w-64 h-64 bg-[#c17f24] rounded-full blur-[80px] opacity-20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-[#8B1A1A] rounded-full blur-[60px] opacity-25 pointer-events-none" />
+        {/*<div className="absolute top-8 right-0 w-64 h-64 bg-[#c17f24] rounded-full blur-[80px] opacity-20 pointer-events-none" />*/}
+        {/*<div className="absolute bottom-0 left-0 w-48 h-48 bg-[#8B1A1A] rounded-full blur-[60px] opacity-25 pointer-events-none" />*/}
 
         {/* Logo */}
 
@@ -416,10 +416,10 @@ export default function AboutPage() {
               🛡️ FSSAI Certified
             </span>
             <span className="bg-white/10 border border-yellow-900/20 text-yellow-900 text-[11px] font-bold px-3 py-1.5 rounded-full">
-              🛵 On Zomato & Swiggy
+              ✨ No Preservatives
             </span>
             <span className="bg-white/10 border border-yellow-900/20 text-yellow-900 text-[11px] font-bold px-3 py-1.5 rounded-full">
-              ✨ No Preservatives
+              🛵 On Zomato
             </span>
           </div>
         </div>

@@ -556,7 +556,12 @@ export default function MobileMenu() {
         </div>
 
         {/* Remaining Categories Grid (Fixed above Bottom Nav) */}
-        <div className="fixed bottom-0 w-full h-38 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)]"></div>
+        <div className="fixed bottom-0 w-full h-42 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)] flex justify-center">
+          <p className="text-black/50 font-medium text-xs p-2">
+            Whats on your mind pick one item to fliter the menu
+          </p>
+        </div>
+
         <div className="flex flex-wrap fixed bottom-20 w-full max-w-md justify-center gap-3 px-4 py-2 z-50">
           {otherCategories.map((category) => {
             const isActive = activeCategory === category.slug;
