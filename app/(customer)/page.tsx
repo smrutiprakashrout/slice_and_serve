@@ -380,7 +380,7 @@ export default function MobileMenu() {
           {/* Top Bar */}
 
           {/* Popular Dishes */}
-          <div ref={listRef}>
+          {/* <div ref={listRef}>
             <div className="px-6 mb-4">
               <h2 className="text-lg font-bold text-black">Popular Dishes</h2>
             </div>
@@ -422,10 +422,10 @@ export default function MobileMenu() {
                             </p>
                           </div>
                         </div>
-                      </div>
+                      </div> */}
 
-                      {/* Featured Item Image */}
-                      <div className="pointer-events-none absolute -right-0 top-1/2 -translate-y-1/2 w-full h-40 bg-white/10 flex items-center justify-center overflow-hidden">
+          {/* Featured Item Image */}
+          {/*<div className="pointer-events-none absolute -right-0 top-1/2 -translate-y-1/2 w-full h-40 bg-white/10 flex items-center justify-center overflow-hidden">
                         {item.image ? (
                           <img
                             src={item.image}
@@ -442,7 +442,7 @@ export default function MobileMenu() {
                   );
                 })}
             </div>
-          </div>
+          </div>*/}
 
           {/* Menu Title and "All" Button */}
           <div className="flex items-center justify-between px-6 mb-4 mt-2">
