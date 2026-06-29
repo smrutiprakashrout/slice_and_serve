@@ -1,6 +1,5 @@
 // lib/cart-store.ts
-// Single source of truth for cart state across all pages.
-// Uses Zustand — install with: npm install zustand
+// Run once: npm install zustand
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
@@ -8,30 +7,21 @@ import { persist } from "zustand/middleware";
 export type ItemType = "veg" | "nonveg";
 
 export interface CartItem {
-  id: string; // unique menu item id  e.g. "sand-01"
+  id: string;
   name: string;
   image: string;
-  price: number; // unit price from the MENU — never hardcoded in cart
+  price: number; // always from MOCK_MENU — never hardcoded
   qty: number;
   type: ItemType;
 }
 
 interface CartStore {
   items: CartItem[];
-
-  // Add 1 of an item (or create it if not present)
   addItem: (item: Omit<CartItem, "qty">) => void;
-
-  // Remove 1 qty (deletes if qty reaches 0)
-  removeItem: (id: string) => void;
-
-  // Set exact qty (0 = delete)
-  setQty: (id: string, qty: number) => void;
-
-  // Wipe the whole cart
+  removeOne: (id: string) => void;
+  removeAll: (id: string) => void;
   clearCart: () => void;
-
-  // Derived helpers
+  getQty: (id: string) => number;
   totalItems: () => number;
   itemTotal: () => number;
 }
@@ -54,13 +44,12 @@ export const useCartStore = create<CartStore>()(
           return { items: [...state.items, { ...incoming, qty: 1 }] };
         }),
 
-      removeItem: (id) =>
+      removeOne: (id) =>
         set((state) => {
           const existing = state.items.find((i) => i.id === id);
           if (!existing) return state;
-          if (existing.qty <= 1) {
+          if (existing.qty <= 1)
             return { items: state.items.filter((i) => i.id !== id) };
-          }
           return {
             items: state.items.map((i) =>
               i.id === id ? { ...i, qty: i.qty - 1 } : i,
@@ -68,23 +57,17 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      setQty: (id, qty) =>
-        set((state) => {
-          if (qty <= 0) {
-            return { items: state.items.filter((i) => i.id !== id) };
-          }
-          return {
-            items: state.items.map((i) => (i.id === id ? { ...i, qty } : i)),
-          };
-        }),
+      removeAll: (id) =>
+        set((state) => ({ items: state.items.filter((i) => i.id !== id) })),
 
       clearCart: () => set({ items: [] }),
 
+      getQty: (id) => get().items.find((i) => i.id === id)?.qty ?? 0,
+
       totalItems: () => get().items.reduce((s, i) => s + i.qty, 0),
+
       itemTotal: () => get().items.reduce((s, i) => s + i.price * i.qty, 0),
     }),
-    {
-      name: "sns-cart", // persists in localStorage across refreshes
-    },
+    { name: "sns-cart" }, // persists across page refreshes
   ),
 );

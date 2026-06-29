@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Image from "next/image";
-import { MapPin, ChevronDown, ShoppingCart, User, Star } from "lucide-react";
+import { Star } from "lucide-react";
+import { useCartStore } from "@/lib/cart-store";
 
 gsap.registerPlugin(useGSAP);
 
-// --- Types & Data ---
+// ─── Types & Data (unchanged from your file) ──────────────────────────────────
+
 interface Category {
   id: string;
   name: string;
@@ -38,7 +40,7 @@ const CATEGORIES: Category[] = [
 ];
 
 const MOCK_MENU: MenuItem[] = [
-  // --- BURGERS ---
+  // BURGERS
   {
     id: "b1",
     name: "Chicken Burger",
@@ -51,8 +53,7 @@ const MOCK_MENU: MenuItem[] = [
     image: "/images/burger.jpg",
     available: true,
   },
-
-  // --- SANDWICHES ---
+  // SANDWICHES
   {
     id: "s1",
     name: "Chicken 65 Sandwich",
@@ -173,8 +174,7 @@ const MOCK_MENU: MenuItem[] = [
     image: "/images/Panner_sandwitch.jpg",
     available: true,
   },
-
-  // --- STARTERS ---
+  // STARTERS
   {
     id: "st1",
     name: "Chicken Lollipop",
@@ -271,7 +271,7 @@ const MOCK_MENU: MenuItem[] = [
     image: "/images/snacks/veg/Fries.jpg",
     available: true,
   },
-  // --- DRINKS ---
+  // DRINKS
   {
     id: "d1",
     name: "Blue Angel",
@@ -322,148 +322,81 @@ const MOCK_MENU: MenuItem[] = [
   },
 ];
 
+// ─── Veg/Non-Veg icon (unchanged) ─────────────────────────────────────────────
+
+const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
+  const isVeg = type === "veg";
+  return (
+    <div
+      className={`flex items-center justify-center w-4 h-4 border-[1.5px] rounded-sm bg-white shrink-0 ${isVeg ? "border-green-600" : "border-red-600"}`}
+    >
+      <div
+        className={`w-[6px] h-[6px] rounded-full ${isVeg ? "bg-green-600" : "bg-red-600"}`}
+      />
+    </div>
+  );
+};
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function MobileMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
-  // const listRef = useRef<HTMLDivElement>(null);
 
-  const filteredMenu = MOCK_MENU.filter((item) => {
-    if (activeCategory === "all") return true;
-    return item.categorySlug === activeCategory;
-  });
+  // ── Cart store — subscribe to items array directly so UI re-renders on every change ──
+  const items = useCartStore((s) => s.items); // ← reactive value, triggers re-render
+  const addItem = useCartStore((s) => s.addItem);
+  const removeOne = useCartStore((s) => s.removeOne);
 
-  // const featuredMenu = MOCK_MENU.filter((item) => item.featured === true);
+  // Derived inline — always in sync with items
+  const totalItems = items.reduce((s, i) => s + i.qty, 0);
+  const getQty = (id: string) => items.find((i) => i.id === id)?.qty ?? 0;
 
-  // useGSAP(
-  //   () => {
-  //     gsap.fromTo(
-  //       ".food-card",
-  //       { x: 30, opacity: 0 },
-  //       {
-  //         x: 0,
-  //         opacity: 1,
-  //         duration: 0.4,
-  //         stagger: 0.1,
-  //         ease: "power2.out",
-  //         clearProps: "all",
-  //       },
-  //     );
-  //   },
-  //   { dependencies: [], scope: listRef },
-  // );
+  const filteredMenu = MOCK_MENU.filter((item) =>
+    activeCategory === "all" ? true : item.categorySlug === activeCategory,
+  );
 
   const allCategory = CATEGORIES.find((c) => c.slug === "all");
   const otherCategories = CATEGORIES.filter((c) => c.slug !== "all");
   const isAllActive = activeCategory === "all";
 
-  // Helper component for the Veg/Non-Veg icon
-  const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
-    const isVeg = type === "veg";
-    return (
-      <div
-        className={`flex items-center justify-center w-4 h-4 border-[1.5px] rounded-sm bg-white shrink-0 ${
-          isVeg ? "border-green-600" : "border-red-600"
-        }`}
-      >
-        <div
-          className={`w-[6px] h-[6px] rounded-full ${
-            isVeg ? "bg-green-600" : "bg-red-600"
-          }`}
-        />
-      </div>
-    );
+  // ── Add to cart with a quick scale animation on the card ──
+  const handleAdd = (item: MenuItem) => {
+    addItem({
+      id: item.id,
+      name: item.name,
+      image: item.image,
+      price: item.price, // ← real price from MOCK_MENU
+      type: item.type === "veg" ? "veg" : "nonveg",
+    });
+    // Micro-animation: briefly scale the card
+    const card = document.getElementById(`card-${item.id}`);
+    if (card)
+      gsap.fromTo(
+        card,
+        { scale: 0.96 },
+        { scale: 1, duration: 0.25, ease: "back.out(3)" },
+      );
   };
 
   return (
     <main className="bg-[#ffffff] font-sans h-dvh flex flex-col">
       <div className="max-w-md mx-auto w-full bg-[#fff1e3] mt-26 h-full flex flex-col relative shadow-2xl">
         <div className="flex-1 overflow-y-auto pb-28">
-          {/* Top Bar */}
-
-          {/* Popular Dishes */}
-          {/* <div ref={listRef}>
-            <div className="px-6 mb-4">
-              <h2 className="text-lg font-bold text-black">Popular Dishes</h2>
-            </div>
-            <div className="flex flex-row flex-nowrap gap-4 overflow-x-auto px-6 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
-              {featuredMenu
-                .sort((a, b) => b.rating - a.rating)
-                .map((item, index) => {
-                  const isDark = index % 2 === 0;
-                  return (
-                    <div
-                      key={item.id}
-                      className={`food-card relative rounded-xl h-32 w-62 shrink-0 overflow-hidden shadow-sm text-white ${!item.available ? "opacity-75" : ""}`}
-                    >
-                      <div className="absolute z-8 bg-linear-0 from-black to-purple-500/0 w-full h-full"></div>
-                      <div className="relative px-4 py-2 z-10 flex flex-col justify-end w-full items-end h-full pointer-events-none">
-                        <div className="flex items-center gap-2 mb-1">
-                          <DietIcon type={item.type} />
-                          <h3 className="text-sm font-black truncate">
-                            {item.name}
-                          </h3>
-                        </div>
-
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-1">
-                            <Star
-                              className={`w-4 h-4 fill-current ${isDark ? "text-yellow-400" : "text-yellow-400"}`}
-                            />
-                            <span className="font-bold text-sm">
-                              {item.rating}
-                            </span>
-                          </div>
-                          <div
-                            className={`py-1 px-3 rounded-lg ${isDark ? "bg-yellow-500" : "bg-yellow-400"}`}
-                          >
-                            <p
-                              className={`font-extrabold text-sm ${isDark ? "text-gray-700" : "text-gray-700"}`}
-                            >
-                              ₹{item.price}/-
-                            </p>
-                          </div>
-                        </div>
-                      </div> */}
-
-          {/* Featured Item Image */}
-          {/*<div className="pointer-events-none absolute -right-0 top-1/2 -translate-y-1/2 w-full h-40 bg-white/10 flex items-center justify-center overflow-hidden">
-                        {item.image ? (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className={`w-full h-full object-cover ${!item.available ? "grayscale" : ""}`}
-                          />
-                        ) : (
-                          <span className="text-xs font-bold opacity-50 text-black">
-                            IMAGE
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          </div>*/}
-
-          {/* Menu Title and "All" Button */}
+          {/* Menu Title + All button */}
           <div className="flex items-center justify-between px-6 mb-4 mt-2">
             <p className="font-bold text-xl text-black">Menu</p>
             {allCategory && (
               <button
                 type="button"
                 onClick={() => setActiveCategory(allCategory.slug)}
-                className={`
-                  flex items-center justify-center gap-2
-                  rounded-lg font-bold text-xs h-8 px-4
-                  transition-all duration-300 shadow-sm outline-none
-                  ${
-                    isAllActive
-                      ? "bg-yellow-500 text-gray-800 border-2 border-yellow-900"
-                      : "bg-white text-black border-2 border-yellow-900"
-                  }
-                `}
+                className={`flex items-center justify-center gap-2 rounded-lg font-bold text-xs h-8 px-4 transition-all duration-300 shadow-sm outline-none ${
+                  isAllActive
+                    ? "bg-yellow-500 text-gray-800 border-2 border-yellow-900"
+                    : "bg-white text-black border-2 border-yellow-900"
+                }`}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
-                <span className="text-base leading-none flex items-center justify-center">
+                <span className="text-base leading-none">
                   {allCategory.icon}
                 </span>
                 <span>
@@ -473,80 +406,113 @@ export default function MobileMenu() {
             )}
           </div>
 
-          {/* Categorized Menu Grid */}
+          {/* Menu Grid */}
           <div className="px-6 pb-36">
             <div className="grid grid-cols-2 gap-4">
-              {filteredMenu.map((item) => (
-                <div
-                  key={`menu-${item.id}`}
-                  className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full relative"
-                >
-                  {/* Image Header Area */}
-                  <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
-                    {item.image ? (
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        width={100}
-                        height={100}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
-                        Image
-                      </span>
-                    )}
-
-                    {/* Floating Veg/Non-Veg Icon */}
-                    <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm z-10">
-                      <DietIcon type={item.type} />
-                    </div>
-
-                    {/* Out of stock visual overlay on image */}
-                    {!item.available && (
-                      <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] flex items-center justify-center z-20">
-                        <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-md shadow-sm">
-                          Out of Stock
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Content Area */}
+              {filteredMenu.map((item) => {
+                const qty = getQty(item.id);
+                return (
                   <div
-                    className={`p-3 flex flex-col flex-1 justify-between ${!item.available ? "opacity-75" : ""}`}
+                    id={`card-${item.id}`}
+                    key={`menu-${item.id}`}
+                    className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full relative"
                   >
-                    <div>
-                      <h3 className="font-semibold text-[15px] text-gray-900 leading-tight mb-[2px]">
-                        {item.name}
-                      </h3>
-                      <p className="text-[11px] text-gray-500 truncate">
-                        {item.subtitle}
-                      </p>
+                    {/* Image */}
+                    <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.name}
+                          width={100}
+                          height={100}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
+                          Image
+                        </span>
+                      )}
+                      <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm z-10">
+                        <DietIcon type={item.type} />
+                      </div>
+                      {!item.available && (
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] flex items-center justify-center z-20">
+                          <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-md shadow-sm">
+                            Out of Stock
+                          </span>
+                        </div>
+                      )}
                     </div>
 
-                    {/* Price & Buy Button Row */}
-                    <div className="flex items-center justify-between mt-3 pt-1">
-                      <span className="font-extrabold text-sm text-gray-900">
-                        ₹{item.price}
-                      </span>
-                      <button
-                        disabled={!item.available}
-                        className={`font-bold text-xs px-4 py-1.5 rounded-lg transition-colors shadow-sm active:scale-95 ${
-                          item.available
-                            ? "bg-[#fdc647] text-black hover:bg-yellow-400"
-                            : "bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"
-                        }`}
-                      >
-                        {item.available ? "Buy" : "Sold Out"}
-                      </button>
+                    {/* Content */}
+                    <div
+                      className={`p-3 flex flex-col flex-1 justify-between ${!item.available ? "opacity-75" : ""}`}
+                    >
+                      <div>
+                        <h3 className="font-semibold text-[15px] text-gray-900 leading-tight mb-[2px]">
+                          {item.name}
+                        </h3>
+                        <p className="text-[11px] text-gray-500 truncate">
+                          {item.subtitle}
+                        </p>
+                      </div>
+
+                      {/* Price + Add/Qty stepper */}
+                      <div className="flex items-center justify-between mt-3 pt-1">
+                        <span className="font-extrabold text-sm text-gray-900">
+                          ₹{item.price}
+                        </span>
+
+                        {/* Add → "Added ✓" on tap, inline stepper for qty */}
+                        {!item.available ? (
+                          <button
+                            disabled
+                            className="font-bold text-xs px-4 py-1.5 rounded-lg bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"
+                          >
+                            Sold Out
+                          </button>
+                        ) : qty > 0 ? (
+                          <div className="flex flex-col items-end gap-1">
+                            {/* "Added" pill — white bg, black text, yellow border */}
+                            <div className="flex items-center gap-1 bg-white border-2 border-yellow-900 rounded-lg px-2 py-1">
+                              <span className="font-black text-[11px] text-black">
+                                Added ✓
+                              </span>
+                            </div>
+                            {/* Qty stepper below */}
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => removeOne(item.id)}
+                                className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
+                              >
+                                −
+                              </button>
+                              <span className="font-black text-xs text-gray-900 w-4 text-center">
+                                {qty}
+                              </span>
+                              <button
+                                onClick={() => handleAdd(item)}
+                                className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleAdd(item)}
+                            className="font-bold text-xs px-4 py-1.5 rounded-lg bg-[#fdc647] text-black hover:bg-yellow-400 transition-all duration-200 shadow-sm active:scale-95"
+                          >
+                            Add
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
-            {/* Empty State Fallback */}
             {filteredMenu.length === 0 && (
               <div className="text-center py-10">
                 <p className="text-gray-500 font-medium text-sm">
@@ -557,13 +523,12 @@ export default function MobileMenu() {
           </div>
         </div>
 
-        {/* Remaining Categories Grid (Fixed above Bottom Nav) */}
-        <div className="fixed bottom-0 w-full h-42 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)] flex justify-center">
+        {/* Category filter bar (unchanged) */}
+        <div className="fixed bottom-0 w-full max-w-md h-42 bg-[#fff1e3] z-50 shadow-[0_-6px_12px_rgba(0,0,0,0.12)] flex justify-center">
           <p className="text-black/50 font-medium text-xs p-2">
             Whats on your mind pick one item to fliter
           </p>
         </div>
-
         <div className="flex flex-wrap fixed bottom-20 w-full max-w-md justify-center gap-3 px-4 py-2 z-50">
           {otherCategories.map((category) => {
             const isActive = activeCategory === category.slug;
@@ -572,16 +537,11 @@ export default function MobileMenu() {
                 key={category.id}
                 type="button"
                 onClick={() => setActiveCategory(category.slug)}
-                className={`
-                  flex items-center justify-center gap-2
-                  rounded-xl font-bold text-sm h-12
-                  transition-all duration-300 shadow-sm outline-none
-                  ${
-                    isActive
-                      ? "bg-yellow-900 text-white border-2 border-yellow-900 px-5"
-                      : "bg-white text-black border border-gray-200 w-12"
-                  }
-                `}
+                className={`flex items-center justify-center gap-2 rounded-xl font-bold text-sm h-12 transition-all duration-300 shadow-sm outline-none ${
+                  isActive
+                    ? "bg-yellow-900 text-white border-2 border-yellow-900 px-5"
+                    : "bg-white text-black border border-gray-200 w-12"
+                }`}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
                 <span className="text-lg leading-none flex items-center justify-center">

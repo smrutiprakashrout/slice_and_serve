@@ -1,79 +1,35 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
+
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import Image from "next/image";
 import {
   X,
   Info,
   CheckCircle2,
   ShoppingBag,
+  ShoppingCart,
   Plus,
   Minus,
   ArrowRight,
 } from "lucide-react";
+import { useCartStore } from "@/lib/cart-store";
 
 gsap.registerPlugin(useGSAP);
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ItemType = "veg" | "nonveg";
-
-interface CartItem {
-  id: string;
-  name: string;
-  image: string;
-  price: number;
-  qty: number;
-  type: ItemType;
-}
-
-// ─── Mock cart data ───────────────────────────────────────────────────────────
-
-const INITIAL_CART: CartItem[] = [
-  {
-    id: "c1",
-    name: "Chicken 65 Sandwich",
-    image: "/images/chilli_chicken_sand.jpg",
-    price: 120,
-    qty: 1,
-    type: "nonveg",
-  },
-  {
-    id: "c2",
-    name: "Paneer Sandwich",
-    image: "/images/Panner_sandwitch.jpg",
-    price: 90,
-    qty: 2,
-    type: "veg",
-  },
-  {
-    id: "c3",
-    name: "Lemon Iced Tea",
-    image: "/images/drink/lemon_ice_tea.jpg",
-    price: 50,
-    qty: 1,
-    type: "veg",
-  },
-];
 
 const PROMO_CODES: Record<string, number> = {
   SLICE10: 10,
   SERVE20: 20,
   WELCOME: 15,
 };
+const DELIVERY_FEE = 0;
 
-const DELIVERY_FEE = 20;
-
-// ─── Veg / Non-veg dot badge ──────────────────────────────────────────────────
-
-function VegDot({ type }: { type: ItemType }) {
+function VegDot({ type }: { type: "veg" | "nonveg" }) {
   return (
     <div
-      className={`w-4 h-4 border-2 rounded-[3px] flex items-center justify-center shrink-0
-        ${type === "veg" ? "border-green-600" : "border-red-500"}`}
+      className={`w-4 h-4 border-2 rounded-[3px] flex items-center justify-center shrink-0 ${type === "veg" ? "border-green-600" : "border-red-500"}`}
     >
       <div
         className={`w-2 h-2 rounded-full ${type === "veg" ? "bg-green-600" : "bg-red-500"}`}
@@ -82,28 +38,31 @@ function VegDot({ type }: { type: ItemType }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
-
 export default function CartPage() {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const [cart, setCart] = useState<CartItem[]>(INITIAL_CART);
+  // ── All prices come from the store — populated by the menu's addItem() ──
+  const items = useCartStore((s) => s.items);
+  const addItem = useCartStore((s) => s.addItem);
+  const removeOne = useCartStore((s) => s.removeOne);
+  const removeAll = useCartStore((s) => s.removeAll);
+
   const [promoInput, setPromoInput] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<string | null>(null);
   const [promoError, setPromoError] = useState(false);
-  const [promoSuccess, setPromoSuccess] = useState(false);
 
-  // ── Entrance animations ──
+  // Entrance animations
   useGSAP(
     () => {
-      const tl = gsap.timeline();
-      tl.from(".cart-header", {
-        y: -20,
-        opacity: 0,
-        duration: 0.4,
-        ease: "power2.out",
-      })
+      gsap
+        .timeline()
+        .from(".cart-header", {
+          y: -20,
+          opacity: 0,
+          duration: 0.4,
+          ease: "power2.out",
+        })
         .from(
           ".cart-item",
           {
@@ -134,18 +93,8 @@ export default function CartPage() {
     { scope: containerRef },
   );
 
-  // ── Cart operations ──
-  const updateQty = (id: string, delta: number) => {
-    setCart((prev) =>
-      prev
-        .map((item) =>
-          item.id === id ? { ...item, qty: item.qty + delta } : item,
-        )
-        .filter((item) => item.qty > 0),
-    );
-  };
-
-  const removeItem = (id: string) => {
+  // Animate out then remove
+  const handleRemoveAll = (id: string) => {
     const el = document.getElementById(`cart-item-${id}`);
     if (el) {
       gsap.to(el, {
@@ -153,24 +102,21 @@ export default function CartPage() {
         opacity: 0,
         height: 0,
         marginBottom: 0,
-        paddingTop: 0,
-        paddingBottom: 0,
         duration: 0.35,
         ease: "power2.in",
-        onComplete: () => setCart((prev) => prev.filter((i) => i.id !== id)),
+        onComplete: () => removeAll(id),
       });
     } else {
-      setCart((prev) => prev.filter((i) => i.id !== id));
+      removeAll(id);
     }
   };
 
-  // ── Promo code ──
+  // Promo
   const applyPromo = () => {
     const code = promoInput.trim().toUpperCase();
     if (PROMO_CODES[code]) {
       setAppliedPromo(code);
       setPromoError(false);
-      setPromoSuccess(true);
       gsap.from(".promo-success", {
         scale: 0.8,
         opacity: 0,
@@ -179,9 +125,8 @@ export default function CartPage() {
       });
     } else {
       setPromoError(true);
-      setPromoSuccess(false);
       gsap.to(".promo-input-wrap", {
-        keyframes: [{ x: -6 }, { x: 6 }, { x: -5 }, { x: 5 }, { x: 0 }],
+        x: [-6, 6, -5, 5, 0],
         duration: 0.35,
         ease: "none",
       });
@@ -191,20 +136,19 @@ export default function CartPage() {
   const removePromo = () => {
     setAppliedPromo(null);
     setPromoInput("");
-    setPromoSuccess(false);
     setPromoError(false);
   };
 
-  // ── Totals ──
-  const itemTotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
+  // Totals — computed from real store prices
+  const itemTotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const discount = appliedPromo
     ? Math.round((itemTotal * PROMO_CODES[appliedPromo]) / 100)
     : 0;
   const total = itemTotal - discount + DELIVERY_FEE;
-  const totalItems = cart.reduce((s, i) => s + i.qty, 0);
+  const totalItems = items.reduce((s, i) => s + i.qty, 0);
 
-  // ── Empty state ──
-  if (cart.length === 0) {
+  // Empty state
+  if (items.length === 0) {
     return (
       <div className="min-h-dvh bg-[#f0e6dc] flex flex-col items-center justify-center px-8 text-center">
         <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-sm">
@@ -218,7 +162,7 @@ export default function CartPage() {
         </p>
         <button
           onClick={() => router.back()}
-          className="bg-[#4a7c59] text-white font-black text-sm px-8 h-13 py-4 rounded-2xl flex items-center gap-2 shadow-lg shadow-[#4a7c59]/30 active:scale-95 transition-transform"
+          className="bg-yellow-900 text-white font-black text-sm px-8 py-4 rounded-2xl flex items-center gap-2 shadow-lg active:scale-95 transition-transform"
         >
           Browse Menu <ArrowRight className="w-4 h-4" />
         </button>
@@ -231,73 +175,66 @@ export default function CartPage() {
       ref={containerRef}
       className="min-h-dvh bg-[#f0e6dc] font-sans flex flex-col"
     >
-      <style>{`
-        :root { --green: #4a7c59; --brown: #3d1a00; --cream: #f0e6dc; }
-        * { -webkit-tap-highlight-color: transparent; }
-      `}</style>
+      <style>{`* { -webkit-tap-highlight-color: transparent; }`}</style>
 
-      {/* ── Scrollable content ──────────────────────────────────── */}
-      <div className="flex-1 overflow-y-auto px-5 pt-6 pb-6">
-        {/* ── Header ── */}
-        <div className="cart-header flex items-start justify-between mb-6">
-          <div className="flex items-start gap-2">
-            <h1 className="text-2xl font-black text-[#2a1800] leading-tight tracking-tight">
-              My Cart
+      <div className="overflow-y-auto px-5 pt-6 pb-6">
+        {/* Header */}
+        <div className="fixed top-0 left-0 right-0 mx-auto w-full max-w-md bg-[#f0e6dc] shadow-xs z-50 flex items-center justify-between px-6 py-2">
+          {" "}
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="text-yellow-900" />
+            <h1 className="text-lg font-black text-yellow-950 leading-tight tracking-tight">
+              Basket
             </h1>
-            {/* Item count badge */}
-            <span className="w-6 h-6 bg-yellow-900 text-white text-xs font-black rounded-full flex items-center justify-center mt-1 shadow-sm">
+            <span className="w-5 h-5 bg-white text-yellow-900 text-xs font-black rounded-full flex items-center justify-center shadow-sm">
               {totalItems}
             </span>
           </div>
           <button
             onClick={() => router.back()}
-            className="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-sm border border-[#e8d9cc] active:scale-95 transition-transform mt-0.5"
+            className="w-10 h-8 bg-yellow-900 rounded-md flex items-center justify-center shadow-sm border border-[#e8d9cc] active:scale-95 transition-transform mt-0.5"
           >
-            <X className="w-4 h-4 text-[#2a1800]/60" strokeWidth={2.5} />
+            <X className="w-4 h-4 text-white" strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* ── Cart Items ── */}
-        <div className="space-y-3 mb-6">
-          {cart.map((item) => (
+        {/* Cart Items */}
+        <div className="space-y-3 mb-6 mt-12">
+          {items.map((item) => (
             <div
               key={item.id}
               id={`cart-item-${item.id}`}
-              className="cart-item bg-white rounded-[20px] overflow-hidden shadow-sm"
+              className="cart-item bg-white rounded-[20px] overflow-hidden"
               style={{ boxShadow: "0 2px 12px rgba(42,24,0,0.07)" }}
             >
               <div className="flex">
-                {/* Image — bleeds to left edge */}
-                <div className="w-24 h-28 shrink-0 relative overflow-hidden bg-[#f5e6d0]">
-                  <Image
+                <div className="w-24 h-28 shrink-0 overflow-hidden bg-[#f5e6d0]">
+                  <img
                     src={item.image}
-                    width={100}
-                    height={100}
                     alt={item.name}
                     className="w-full h-full object-cover"
                   />
                 </div>
-
-                {/* Info */}
                 <div className="flex-1 px-4 py-3 flex flex-col justify-between min-w-0">
                   <div>
-                    {/* Veg dot + name */}
                     <div className="flex items-center gap-1.5 mb-1">
                       <VegDot type={item.type} />
                       <p className="font-black text-[#2a1800] text-sm leading-tight line-clamp-1">
                         {item.name}
                       </p>
                     </div>
-                    {/* Price */}
-                    <p className="text-[#4a7c59] pt-4 font-black text-base leading-none">
+                    {/* Price from store — exactly matches what was shown on the menu */}
+                    <p className="text-yellow-900 font-black text-base leading-none pt-1">
                       ₹{item.price}
+                      <span className="text-[11px] text-[#2a1800]/30 font-semibold ml-1">
+                        / item
+                      </span>
                     </p>
                   </div>
-
                   {/* Qty stepper */}
                   <div className="flex items-center justify-end gap-3 mt-2">
                     <button
-                      onClick={() => updateQty(item.id, -1)}
+                      onClick={() => removeOne(item.id)}
                       className="w-7 h-7 rounded-full bg-[#f0e6dc] flex items-center justify-center active:scale-90 transition-transform"
                     >
                       <Minus
@@ -309,7 +246,15 @@ export default function CartPage() {
                       {item.qty}
                     </span>
                     <button
-                      onClick={() => updateQty(item.id, 1)}
+                      onClick={() =>
+                        addItem({
+                          id: item.id,
+                          name: item.name,
+                          image: item.image,
+                          price: item.price,
+                          type: item.type,
+                        })
+                      }
                       className="w-7 h-7 rounded-full bg-[#3d1a00] flex items-center justify-center shadow-sm active:scale-90 transition-transform"
                     >
                       <Plus
@@ -320,7 +265,6 @@ export default function CartPage() {
                   </div>
                 </div>
               </div>
-
               {/* Subtotal row */}
               <div className="px-4 py-2 bg-[#faf7f4] border-t border-[#f0e6dc] flex justify-between items-center">
                 <p className="text-[11px] text-[#2a1800]/40 font-semibold">
@@ -331,7 +275,7 @@ export default function CartPage() {
                     ₹{item.price * item.qty}
                   </p>
                   <button
-                    onClick={() => removeItem(item.id)}
+                    onClick={() => handleRemoveAll(item.id)}
                     className="text-[10px] text-red-400 font-bold active:text-red-600"
                   >
                     Remove
@@ -342,17 +286,16 @@ export default function CartPage() {
           ))}
         </div>
 
-        {/* ── Promo Code ── */}
+        {/* Promo Code */}
         <div className="promo-section mb-6">
           <p className="text-base font-black text-[#2a1800] mb-3">
             Have a promo code?
           </p>
-
           {appliedPromo ? (
             <div className="promo-success bg-white rounded-2xl px-4 py-3.5 flex items-center justify-between shadow-sm border border-green-100">
               <div className="flex items-center gap-2">
                 <CheckCircle2
-                  className="w-5 h-5 text-[#4a7c59] fill-green-50"
+                  className="w-5 h-5 text-[#4a7c59]"
                   strokeWidth={2}
                 />
                 <div>
@@ -366,14 +309,14 @@ export default function CartPage() {
               </div>
               <button
                 onClick={removePromo}
-                className="text-[11px] text-red-400 font-bold active:text-red-600"
+                className="text-[11px] text-red-400 font-bold"
               >
                 Remove
               </button>
             </div>
           ) : (
             <div
-              className="promo-input-wrap bg-white rounded-2xl flex items-center gap-2 px-4 shadow-sm overflow-hidden"
+              className="promo-input-wrap bg-white rounded-2xl flex items-center gap-2 px-4 overflow-hidden"
               style={{
                 boxShadow: promoError
                   ? "0 0 0 2px #ef4444"
@@ -389,7 +332,7 @@ export default function CartPage() {
                 }}
                 onKeyDown={(e) => e.key === "Enter" && applyPromo()}
                 placeholder="ENTER CODE"
-                className="flex-1 py-3.5 bg-transparent text-sm font-black text-[#4a7c59] placeholder:text-[#2a1800]/20 outline-none tracking-widest"
+                className="flex-1 py-3.5 bg-transparent text-sm font-black text-yellow-900 placeholder:text-[#2a1800]/20 outline-none tracking-widest"
               />
               {promoError && (
                 <p className="text-[10px] text-red-400 font-bold whitespace-nowrap">
@@ -398,14 +341,12 @@ export default function CartPage() {
               )}
               <button
                 onClick={applyPromo}
-                className="bg-yellow-900 text-white font-black text-xs px-5 py-2.5 rounded-xl shadow-sm active:scale-95 transition-transform whitespace-nowrap"
+                className="bg-yellow-900 text-white font-black text-xs px-5 py-2.5 rounded-xl active:scale-95 transition-transform whitespace-nowrap"
               >
                 Apply
               </button>
             </div>
           )}
-
-          {/* Hint */}
           {!appliedPromo && (
             <p className="text-[10px] text-[#2a1800]/35 mt-2 px-1 font-medium">
               Try: SLICE10 · SERVE20 · WELCOME
@@ -413,18 +354,16 @@ export default function CartPage() {
           )}
         </div>
 
-        {/* ── Order Summary ── */}
+        {/* Order Summary */}
         <div
-          className="summary-section bg-white rounded-[20px] overflow-hidden mb-6"
+          className="summary-section bg-white rounded-[20px] overflow-hidden mb-36"
           style={{ boxShadow: "0 2px 12px rgba(42,24,0,0.07)" }}
         >
           <div className="px-5 pt-5 pb-4">
             <p className="text-base font-black text-[#2a1800] mb-4">
               Order summary
             </p>
-
             <div className="space-y-3">
-              {/* Item total */}
               <div className="flex justify-between items-center">
                 <p className="text-sm text-[#2a1800]/50 font-medium">
                   Item total
@@ -433,20 +372,16 @@ export default function CartPage() {
                   ₹{itemTotal}
                 </p>
               </div>
-
-              {/* Discount row */}
               {appliedPromo && (
                 <div className="flex justify-between items-center">
-                  <p className="text-sm text-[#4a7c59] font-medium">
+                  <p className="text-sm text-yellow-900 font-medium">
                     Promo ({appliedPromo})
                   </p>
-                  <p className="text-sm font-black text-[#4a7c59]">
+                  <p className="text-sm font-black text-yellow-900">
                     −₹{discount}
                   </p>
                 </div>
               )}
-
-              {/* Delivery fee */}
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
                   <p className="text-sm text-[#2a1800]/50 font-medium">
@@ -462,18 +397,12 @@ export default function CartPage() {
                 </p>
               </div>
             </div>
-
-            {/* Divider */}
             <div className="my-4 h-px bg-[#f0e6dc]" />
-
-            {/* Total */}
             <div className="flex justify-between items-center">
               <p className="text-base font-black text-[#2a1800]">Total</p>
               <p className="text-xl font-black text-[#2a1800]">₹{total}</p>
             </div>
           </div>
-
-          {/* Savings callout */}
           {appliedPromo && (
             <div className="bg-green-50 border-t border-green-100 px-5 py-3 flex items-center gap-2">
               <CheckCircle2
@@ -488,12 +417,11 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* ── Sticky Checkout ─────────────────────────────────────── */}
+      {/* Sticky Checkout */}
       <div
-        className="checkout-btn px-5 pb-8 pt-3 bg-[#f0e6dc]"
+        className="checkout-btn fixed bottom-0 w-full max-w-md px-5 pb-8 pt-3 bg-[#f0e6dc]"
         style={{ boxShadow: "0 -8px 24px rgba(42,24,0,0.06)" }}
       >
-        {/* Mini summary above button */}
         <div className="flex justify-between items-center mb-3 px-1">
           <p className="text-xs text-[#2a1800]/40 font-semibold">
             {totalItems} item{totalItems !== 1 ? "s" : ""} in cart
@@ -502,18 +430,16 @@ export default function CartPage() {
             Total: <span className="text-[#2a1800] font-black">₹{total}</span>
           </p>
         </div>
-
         <button
-          className="w-full h-14 bg-yellow-900 text-white font-black text-base rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-[#4a7c59]/30 active:scale-[0.98] transition-transform"
-          onClick={() => {
-            // Wire to checkout flow
+          className="w-full h-14 bg-yellow-900 text-white font-black text-base rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-[0.98] transition-transform"
+          onClick={() =>
             gsap.to(".checkout-btn button", {
               scale: 0.97,
               duration: 0.1,
               yoyo: true,
               repeat: 1,
-            });
-          }}
+            })
+          }
         >
           Check Out
           <span className="bg-white/20 rounded-lg px-2.5 py-0.5 text-sm font-black">
