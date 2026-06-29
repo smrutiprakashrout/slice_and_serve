@@ -17,9 +17,12 @@ export default function TopBar() {
       {/* Logo / User / Cart row */}
 
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-[#fff1e3] z-50 flex justify-between items-center px-6 py-2">
-        <div className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm">
+        <button
+          onClick={() => router.push("/profile")}
+          className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+        >
           <User className="w-5 h-5 text-white" />
-        </div>
+        </button>
 
         <Image src="/images/logo.png" alt="logo" width={90} height={90} />
 

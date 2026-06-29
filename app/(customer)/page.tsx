@@ -341,6 +341,9 @@ const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
 
 export default function MobileMenu() {
   const [activeCategory, setActiveCategory] = useState<string>("all");
+  const [dietFilter, setDietFilter] = useState<"all" | "veg" | "non-veg">(
+    "all",
+  );
 
   // ── Cart store — subscribe to items array directly so UI re-renders on every change ──
   const items = useCartStore((s) => s.items); // ← reactive value, triggers re-render
@@ -351,11 +354,21 @@ export default function MobileMenu() {
   const totalItems = items.reduce((s, i) => s + i.qty, 0);
   const getQty = (id: string) => items.find((i) => i.id === id)?.qty ?? 0;
 
-  const filteredMenu = MOCK_MENU.filter((item) =>
+  // Category sub-filter (unchanged) then diet filter layered on top
+  const categoryFiltered = MOCK_MENU.filter((item) =>
     activeCategory === "all" ? true : item.categorySlug === activeCategory,
   );
+  const filteredMenu = categoryFiltered.filter((item) =>
+    dietFilter === "all" ? true : item.type === dietFilter,
+  );
 
-  const allCategory = CATEGORIES.find((c) => c.slug === "all");
+  // Counts scoped to current category selection for tab labels
+  const vegCount = categoryFiltered.filter((i) => i.type === "veg").length;
+  const nonVegCount = categoryFiltered.filter(
+    (i) => i.type === "non-veg",
+  ).length;
+  const allCount = categoryFiltered.length;
+
   const otherCategories = CATEGORIES.filter((c) => c.slug !== "all");
   const isAllActive = activeCategory === "all";
 
@@ -382,28 +395,74 @@ export default function MobileMenu() {
     <main className="bg-[#ffffff] font-sans h-dvh flex flex-col">
       <div className="max-w-md mx-auto w-full bg-[#fff1e3] mt-26 h-full flex flex-col relative shadow-2xl">
         <div className="flex-1 overflow-y-auto pb-28">
-          {/* Menu Title + All button */}
+          {/* Menu Title + Veg / Non-Veg / All tab switcher */}
           <div className="flex items-center justify-between px-6 mb-4 mt-2">
             <p className="font-bold text-xl text-black">Menu</p>
-            {allCategory && (
+
+            {/* 3-tab pill — Veg · Non-Veg · All */}
+            <div className="flex items-center bg-white border-2 border-yellow-900 rounded-xl overflow-hidden shadow-sm">
+              {/* Veg tab */}
               <button
                 type="button"
-                onClick={() => setActiveCategory(allCategory.slug)}
-                className={`flex items-center justify-center gap-2 rounded-lg font-bold text-xs h-8 px-4 transition-all duration-300 shadow-sm outline-none ${
-                  isAllActive
-                    ? "bg-yellow-500 text-gray-800 border-2 border-yellow-900"
-                    : "bg-white text-black border-2 border-yellow-900"
-                }`}
+                onClick={() => setDietFilter("veg")}
+                className={`flex items-center gap-1 h-8 px-3 font-bold text-xs transition-all duration-200 outline-none
+                  ${
+                    dietFilter === "veg"
+                      ? "bg-green-600 text-white"
+                      : "bg-white text-yellow-950"
+                  }`}
                 style={{ WebkitTapHighlightColor: "transparent" }}
               >
-                <span className="text-base leading-none">
-                  {allCategory.icon}
-                </span>
-                <span>
-                  {allCategory.name} ({MOCK_MENU.length})
-                </span>
+                {/* Indian green veg dot */}
+                {/*<span className="w-3 h-3 rounded-sm border border-green-600 flex items-center justify-center bg-white shrink-0">
+                  <span className="w-[5px] h-[5px] rounded-full bg-green-600 block" />
+                </span>*/}
+                <span>Veg</span>
+                {/*<span className="text-[10px] opacity-70">({vegCount})</span>*/}
               </button>
-            )}
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-yellow-900/30" />
+
+              {/* Non-Veg tab */}
+              <button
+                type="button"
+                onClick={() => setDietFilter("non-veg")}
+                className={`flex items-center gap-1 h-8 px-3 font-bold text-xs transition-all duration-200 outline-none
+                  ${
+                    dietFilter === "non-veg"
+                      ? "bg-red-600 text-white"
+                      : "bg-white text-yellow-950"
+                  }`}
+                style={{ WebkitTapHighlightColor: "transparent" }}
+              >
+                {/* Indian red non-veg dot */}
+                {/*<span className="w-3 h-3 rounded-sm border border-red-600 flex items-center justify-center bg-white shrink-0">
+                  <span className="w-[5px] h-[5px] rounded-full bg-red-600 block" />
+                </span>*/}
+                <span>Non-Veg</span>
+                {/*<span className="text-[10px] opacity-70">({nonVegCount})</span>*/}
+              </button>
+
+              {/* Divider */}
+              <div className="w-px h-5 bg-yellow-900/30" />
+
+              {/* All tab */}
+              <button
+                type="button"
+                onClick={() => setDietFilter("all")}
+                className={`flex items-center gap-1 h-8 px-3 font-bold text-xs transition-all duration-200 outline-none
+                  ${
+                    dietFilter === "all"
+                      ? "bg-yellow-500 text-gray-900"
+                      : "bg-white text-gray-700"
+                  }`}
+                style={{ WebkitTapHighlightColor: "transparent" }}
+              >
+                <span>All</span>
+                <span className="text-[10px] opacity-70">({allCount})</span>
+              </button>
+            </div>
           </div>
 
           {/* Menu Grid */}

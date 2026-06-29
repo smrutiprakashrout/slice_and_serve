@@ -229,7 +229,7 @@ export default function AboutPage() {
   // ── All animations ─────────────────────────────────────────────────────────
   useEffect(() => {
     // Dynamically import animejs v4 to avoid SSR issues
-    import("animejs").then(({ animate, createTimeline, onScroll }) => {
+    import("animejs").then(({ animate, createTimeline, onScroll, stagger }) => {
       const anims: any[] = [];
 
       // ── STRATEGY ───────────────────────────────────────────────────────────
@@ -268,7 +268,7 @@ export default function AboutPage() {
               opacity: [0, 1],
               translateY: [14, 0],
               duration: 500,
-              delay: (_el: Element, i: number) => i * 80,
+              delay: stagger(80),
             },
             1100,
           );
