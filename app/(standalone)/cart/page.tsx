@@ -125,11 +125,12 @@ export default function CartPage() {
       });
     } else {
       setPromoError(true);
-      gsap.to(".promo-input-wrap", {
-        x: [-6, 6, -5, 5, 0],
-        duration: 0.35,
-        ease: "none",
-      });
+      const tl = gsap.timeline();
+      tl.to(".promo-input-wrap", { x: -6, duration: 0.05 })
+        .to(".promo-input-wrap", { x: 6, duration: 0.05 })
+        .to(".promo-input-wrap", { x: -5, duration: 0.05 })
+        .to(".promo-input-wrap", { x: 5, duration: 0.05 })
+        .to(".promo-input-wrap", { x: 0, duration: 0.05 });
     }
   };
 
