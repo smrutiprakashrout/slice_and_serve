@@ -1,8 +1,7 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   Leaf,
@@ -19,12 +18,9 @@ import {
   Users,
   Utensils,
   CheckCircle2,
-  Share2,
-  ThumbsUp,
   ChevronRight,
 } from "lucide-react";
-
-gsap.registerPlugin(ScrollTrigger);
+import { FaInstagram, FaFacebook } from "react-icons/fa";
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -195,258 +191,286 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AboutPage() {
-  const pageRef = useRef<HTMLDivElement>(null);
   const tickerRef = useRef<HTMLDivElement>(null);
-  const statsRef = useRef<HTMLElement>(null);
   const faqOpenRef = useRef<number | null>(null);
   const faqRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const animsRef = useRef<any[]>([]); // store all anime instances for cleanup
 
-  // ── FAQ accordion ──────────────────────────────────────────────────────────
+  // ── FAQ accordion — pure CSS height transition, no animation library needed ─
   const toggleFaq = (index: number) => {
     const prev = faqOpenRef.current;
+    // close previous
     if (prev !== null && prev !== index) {
       const prevEl = faqRefs.current[prev];
-      if (prevEl)
-        gsap.to(prevEl, {
-          height: 0,
-          opacity: 0,
-          duration: 0.3,
-          ease: "power2.inOut",
+      if (prevEl) {
+        prevEl.style.height = prevEl.scrollHeight + "px";
+        requestAnimationFrame(() => {
+          prevEl.style.height = "0px";
         });
+      }
     }
     const el = faqRefs.current[index];
     if (!el) return;
     if (prev === index) {
-      gsap.to(el, {
-        height: 0,
-        opacity: 0,
-        duration: 0.3,
-        ease: "power2.inOut",
+      el.style.height = el.scrollHeight + "px";
+      requestAnimationFrame(() => {
+        el.style.height = "0px";
       });
       faqOpenRef.current = null;
     } else {
-      gsap.set(el, { height: "auto", opacity: 1 });
-      const fullH = el.scrollHeight;
-      gsap.fromTo(
-        el,
-        { height: 0, opacity: 0 },
-        { height: fullH, opacity: 1, duration: 0.4, ease: "power3.out" },
-      );
+      el.style.height = "0px";
+      requestAnimationFrame(() => {
+        el.style.height = el.scrollHeight + "px";
+      });
       faqOpenRef.current = index;
     }
   };
 
-  // ── Animations ─────────────────────────────────────────────────────────────
+  // ── All animations ─────────────────────────────────────────────────────────
   useEffect(() => {
-    const page = pageRef.current;
-    if (!page) return;
+    // Dynamically import animejs v4 to avoid SSR issues
+    import("animejs").then(({ animate, createTimeline, onScroll }) => {
+      const anims: any[] = [];
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // CRITICAL RULE: we NEVER start any element at opacity:0 via GSAP on load.
-    // All elements are fully visible by default (CSS handles it).
-    // GSAP only adds motion on top — translate/scale — never touching opacity
-    // on initial load. This means a blank page is impossible.
-    //
-    // For scroll animations we use a CSS class "anim-hidden" (opacity:0,
-    // translateY:30px) applied via JS AFTER the page is already visible,
-    // then GSAP animates to visible. This way: if JS fails → page still shows.
-    // ─────────────────────────────────────────────────────────────────────────
+      // ── STRATEGY ───────────────────────────────────────────────────────────
+      // 1. All animated elements start VISIBLE in HTML (no hidden classes).
+      // 2. We use anime's `from` tween parameter to define the start state.
+      //    This means anime sets the start state right when it creates the
+      //    animation — just before it plays — not on page load.
+      // 3. For scroll animations, `autoplay: onScroll(...)` with `sync: 'play pause'`
+      //    plays the animation once when the element enters the viewport.
+      // 4. If anime fails to load, all elements remain visible. Safe fallback.
 
-    // ── 1. HERO — pure motion, no opacity tricks ──────────────────────────
-    // const heroTl = gsap.timeline({ delay: 0.1 });
-    // heroTl
-    //   .from(".anim-hero-img", {
-    //     scale: 1.07,
-    //     duration: 1.1,
-    //     ease: "power2.out",
-    //     clearProps: "all",
-    //   })
-    //   .from(
-    //     ".anim-hero-title",
-    //     { y: 36, duration: 0.8, ease: "power3.out", clearProps: "all" },
-    //     "-=0.6",
-    //   )
-    //   .from(
-    //     ".anim-hero-sub",
-    //     { y: 22, duration: 0.7, ease: "power2.out", clearProps: "all" },
-    //     "-=0.5",
-    //   )
-    //   .from(
-    //     ".anim-hero-badge",
-    //     {
-    //       y: 12,
-    //       scale: 0.9,
-    //       duration: 0.5,
-    //       stagger: 0.07,
-    //       ease: "back.out(1.8)",
-    //       clearProps: "all",
-    //     },
-    //     "-=0.4",
-    //   );
+      // ── 1. HERO entrance timeline ────────────────────────────────────────
+      const heroImg = document.querySelector<HTMLElement>(".a-hero-img");
+      const heroTitle = document.querySelector<HTMLElement>(".a-hero-title");
+      const heroSub = document.querySelector<HTMLElement>(".a-hero-sub");
+      const heroBadges =
+        document.querySelectorAll<HTMLElement>(".a-hero-badge");
+      const heroScroll = document.querySelector<HTMLElement>(".a-hero-scroll");
 
-    // // ── 2. TICKER ─────────────────────────────────────────────────────────
-    // const ticker = tickerRef.current;
-    // if (ticker) {
-    //   requestAnimationFrame(() => {
-    //     const halfW = ticker.scrollWidth / 2;
-    //     if (halfW > 0) {
-    //       gsap.to(ticker, {
-    //         x: -halfW,
-    //         duration: 30,
-    //         ease: "none",
-    //         repeat: -1,
-    //       });
-    //     }
-    //   });
-    // }
+      if (heroImg && heroTitle && heroSub) {
+        const tl = createTimeline({ defaults: { ease: "outExpo" } });
+        tl.add(heroImg, { opacity: [0, 1], scale: [1.06, 1], duration: 1000 })
+          .add(
+            heroTitle,
+            { opacity: [0, 1], translateY: [40, 0], duration: 800 },
+            400,
+          )
+          .add(
+            heroSub,
+            { opacity: [0, 1], translateY: [24, 0], duration: 700 },
+            900,
+          )
+          .add(
+            heroBadges,
+            {
+              opacity: [0, 1],
+              translateY: [14, 0],
+              duration: 500,
+              delay: (_el: Element, i: number) => i * 80,
+            },
+            1100,
+          );
+        if (heroScroll)
+          tl.add(heroScroll, { opacity: [0, 0.5], duration: 400 }, 1400);
+        anims.push(tl);
+      }
 
-    // // ── 3. STATS count-up ────────────────────────────────────────────────
-    // if (statsRef.current) {
-    //   ScrollTrigger.create({
-    //     trigger: statsRef.current,
-    //     start: "top 80%",
-    //     once: true,
-    //     onEnter() {
-    //       const statEls = page.querySelectorAll<HTMLElement>(".anim-stat-num");
-    //       statEls.forEach((el, i) => {
-    //         const end = STATS[i]?.value ?? 0;
-    //         const obj = { n: 0 };
-    //         gsap.to(obj, {
-    //           n: end,
-    //           duration: 2,
-    //           delay: i * 0.1,
-    //           ease: "power2.out",
-    //           onUpdate() {
-    //             el.textContent = Math.round(obj.n).toLocaleString();
-    //           },
-    //           onComplete() {
-    //             el.textContent = end.toLocaleString();
-    //           },
-    //         });
-    //       });
-    //     },
-    //   });
-    // }
+      // ── 2. TICKER — CSS animation, no JS needed ───────────────────────────
+      // Handled entirely in CSS keyframes below — zero JS, perfectly reliable.
 
-    // ── 4. SCROLL REVEALS — hide via JS first, then reveal ───────────────
-    // We only hide elements AFTER checking the page rendered (inside useEffect).
-    // Any failure leaves them fully visible — no blank page ever.
+      // ── 3. STATS count-up ────────────────────────────────────────────────
+      const statsSection =
+        document.querySelector<HTMLElement>(".a-stats-section");
+      if (statsSection) {
+        const statEls =
+          statsSection.querySelectorAll<HTMLElement>(".a-stat-num");
+        let fired = false;
+        const io = new IntersectionObserver(
+          (entries) => {
+            if (entries[0].isIntersecting && !fired) {
+              fired = true;
+              io.disconnect();
+              statEls.forEach((el, i) => {
+                const end = STATS[i]?.value ?? 0;
+                const obj = { n: 0 };
+                const a = animate(obj, {
+                  n: end,
+                  duration: 2000,
+                  delay: i * 100,
+                  ease: "outQuad",
+                  onUpdate: () => {
+                    el.textContent = Math.round(obj.n).toLocaleString();
+                  },
+                  onComplete: () => {
+                    el.textContent = end.toLocaleString();
+                  },
+                });
+                anims.push(a);
+              });
+            }
+          },
+          { threshold: 0.3 },
+        );
+        io.observe(statsSection);
+      }
 
-    // Gather all scroll-animated elements
-    // const revealEls = page.querySelectorAll<HTMLElement>(".anim-up");
-    // const revealLeft = page.querySelectorAll<HTMLElement>(".anim-left");
-    // const revealScale = page.querySelectorAll<HTMLElement>(".anim-scale");
-    // const hygieneEls = page.querySelectorAll<HTMLElement>(".anim-hygiene");
-    // const headingEls = page.querySelectorAll<HTMLElement>(".anim-heading");
+      // ── 4. SCROLL REVEALS using IntersectionObserver ─────────────────────
+      // We use native IntersectionObserver instead of onScroll() because it:
+      // - works on any scroll container
+      // - fires correctly for elements already in viewport
+      // - has zero dependency on window scroll events
+      // Each element type gets its own observer + animation.
 
-    // // Step 1: hide them all now (DOM is ready, page already painted once)
-    // gsap.set(revealEls, { y: 32, opacity: 0 });
-    // gsap.set(revealLeft, { x: -28, opacity: 0 });
-    // gsap.set(revealScale, { scale: 0.88, opacity: 0 });
-    // gsap.set(hygieneEls, { x: -22, opacity: 0 });
-    // gsap.set(headingEls, { y: 24, opacity: 0 });
+      function revealOnScroll(
+        selector: string,
+        fromProps: Record<string, [number, number]>,
+        options: {
+          duration?: number;
+          ease?: string;
+          delayFn?: (el: Element, i: number) => number;
+        } = {},
+      ) {
+        const els = Array.from(
+          document.querySelectorAll<HTMLElement>(selector),
+        );
+        if (!els.length) return;
 
-    // // Step 2: animate each to visible on scroll
-    // // Use toggleActions "play none none none" with once:true so elements
-    // // already in the viewport on load also get revealed immediately.
-    // revealEls.forEach((el, i) => {
-    //   gsap.to(el, {
-    //     y: 0,
-    //     opacity: 1,
-    //     duration: 0.7,
-    //     ease: "power3.out",
-    //     scrollTrigger: {
-    //       trigger: el,
-    //       start: "top 95%",
-    //       once: true,
-    //     },
-    //   });
-    // });
+        // Set initial (hidden) state right now
+        els.forEach((el) => {
+          Object.entries(fromProps).forEach(([prop, [from]]) => {
+            if (prop === "opacity") el.style.opacity = String(from);
+            else if (prop === "translateY")
+              el.style.transform = `translateY(${from}px)`;
+            else if (prop === "translateX")
+              el.style.transform = `translateX(${from}px)`;
+            else if (prop === "scale") el.style.transform = `scale(${from})`;
+          });
+        });
 
-    // revealLeft.forEach((el) => {
-    //   gsap.to(el, {
-    //     x: 0,
-    //     opacity: 1,
-    //     duration: 0.65,
-    //     ease: "power3.out",
-    //     scrollTrigger: { trigger: el, start: "top 95%", once: true },
-    //   });
-    // });
+        const { duration = 700, ease = "outExpo", delayFn } = options;
+        const seen = new Set<Element>();
 
-    // revealScale.forEach((el) => {
-    //   gsap.to(el, {
-    //     scale: 1,
-    //     opacity: 1,
-    //     duration: 0.55,
-    //     ease: "back.out(1.5)",
-    //     scrollTrigger: { trigger: el, start: "top 95%", once: true },
-    //   });
-    // });
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting && !seen.has(entry.target)) {
+                seen.add(entry.target);
+                const el = entry.target as HTMLElement;
+                const idx = els.indexOf(el);
+                const toProps: Record<string, number> = {};
+                Object.entries(fromProps).forEach(([prop, [, to]]) => {
+                  toProps[prop] = to;
+                });
+                const a = animate(el, {
+                  ...toProps,
+                  duration,
+                  ease,
+                  delay: delayFn ? delayFn(el, idx) : 0,
+                });
+                anims.push(a);
+              }
+            });
+          },
+          { threshold: 0.05, rootMargin: "0px 0px -40px 0px" },
+        );
 
-    // hygieneEls.forEach((el, i) => {
-    //   gsap.to(el, {
-    //     x: 0,
-    //     opacity: 1,
-    //     duration: 0.5,
-    //     ease: "power3.out",
-    //     delay: i * 0.05,
-    //     scrollTrigger: { trigger: el, start: "top 95%", once: true },
-    //   });
-    // });
+        els.forEach((el) => io.observe(el));
+      }
 
-    // headingEls.forEach((el) => {
-    //   gsap.to(el, {
-    //     y: 0,
-    //     opacity: 1,
-    //     duration: 0.7,
-    //     ease: "power3.out",
-    //     scrollTrigger: { trigger: el, start: "top 95%", once: true },
-    //   });
-    // });
+      // Headings — fade + slide up
+      revealOnScroll(
+        ".a-heading",
+        { opacity: [0, 1], translateY: [28, 0] },
+        { duration: 700, ease: "outExpo" },
+      );
 
-    // // ── 5. CARD GRIDS ────────────────────────────────────────────────────
-    // // IMPORTANT: stagger + scrollTrigger in one gsap.to() call is broken in
-    // // GSAP 3 — only the first item animates, the rest stay opacity:0 forever.
-    // // Fix: each card gets its own individual tween + its own ScrollTrigger.
-    // page.querySelectorAll<HTMLElement>(".anim-grid").forEach((grid) => {
-    //   const cards = Array.from(
-    //     grid.querySelectorAll<HTMLElement>(".anim-card"),
-    //   );
-    //   if (!cards.length) return;
-    //   gsap.set(cards, { y: 28, opacity: 0 });
-    //   cards.forEach((card, i) => {
-    //     gsap.to(card, {
-    //       y: 0,
-    //       opacity: 1,
-    //       duration: 0.55,
-    //       delay: i * 0.08,
-    //       ease: "power3.out",
-    //       scrollTrigger: { trigger: grid, start: "top 88%", once: true },
-    //     });
-    //   });
-    // });
+      // Generic up reveals
+      revealOnScroll(
+        ".a-up",
+        { opacity: [0, 1], translateY: [32, 0] },
+        { duration: 650, ease: "outExpo" },
+      );
 
-    // // Cleanup
-    // return () => {
-    //   ScrollTrigger.getAll().forEach((t) => t.kill());
-    // };
+      // Left reveals
+      revealOnScroll(
+        ".a-left",
+        { opacity: [0, 1], translateX: [-30, 0] },
+        { duration: 650, ease: "outExpo" },
+      );
+
+      // Scale pop
+      revealOnScroll(
+        ".a-scale",
+        { opacity: [0, 1], scale: [0.88, 1] },
+        { duration: 550, ease: "outBack(1.4)" },
+      );
+
+      // Cards — stagger via delay function based on index within their parent
+      revealOnScroll(
+        ".a-card",
+        { opacity: [0, 1], translateY: [28, 0] },
+        {
+          duration: 550,
+          ease: "outExpo",
+          delayFn: (el) => {
+            const parent = el.parentElement;
+            if (!parent) return 0;
+            const siblings = Array.from(parent.querySelectorAll(".a-card"));
+            return siblings.indexOf(el) * 80;
+          },
+        },
+      );
+
+      // Hygiene items — stagger slide from left
+      revealOnScroll(
+        ".a-hygiene",
+        { opacity: [0, 1], translateX: [-24, 0] },
+        {
+          duration: 500,
+          ease: "outExpo",
+          delayFn: (_el, i) => i * 55,
+        },
+      );
+
+      animsRef.current = anims;
+    });
+
+    // ── TICKER — CSS only, set up via JS for correct width ─────────────────
+    const ticker = tickerRef.current;
+    if (ticker) {
+      const style = document.createElement("style");
+      style.textContent = `
+        @keyframes ticker-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-33.333%); }
+        }
+        .ticker-inner { animation: ticker-scroll 28s linear infinite; }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
   }, []);
-
+  const router = useRouter();
   return (
-    <div ref={pageRef} className="bg-[#fff1e3] font-sans text-[#3d1a00] pb-32">
+    <div className="bg-[#fff1e3] font-sans text-[#3d1a00] pb-32">
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=Inter:wght@400;500;600;700;900&display=swap');
         .font-display    { font-family: 'Playfair Display', Georgia, serif; }
         .font-body       { font-family: 'Inter', system-ui, sans-serif; }
         .section-divider { height:1px; background:linear-gradient(to right,transparent,#c17f2440,transparent); margin:0 1.5rem; }
         .ticker-wrap     { overflow:hidden; }
-        .ticker-inner    { display:flex; gap:2.5rem; white-space:nowrap; will-change:transform; width:max-content; }
+        .ticker-inner    { display:flex; gap:2.5rem; white-space:nowrap; width:max-content; }
+        .faq-body        { overflow:hidden; height:0; transition:height 0.35s cubic-bezier(0.4,0,0.2,1); }
       `}</style>
 
       {/* ── HERO ──────────────────────────────────────────────────────── */}
       <section className="relative min-h-[70vh] flex flex-col px-6 pb-10 overflow-hidden">
         <div className="relative z-10 mt-24">
-          <div className="anim-hero-img rounded-2xl w-full h-[30vh] overflow-hidden">
+          <div className="a-hero-img rounded-2xl w-full h-[30vh] overflow-hidden">
             <Image
               src="/images/shop.png"
               alt="Slice & Serve"
@@ -456,26 +480,23 @@ export default function AboutPage() {
               priority
             />
           </div>
-
-          <h1 className="anim-hero-title font-display text-4xl font-black text-yellow-900 leading-[1.08] mb-4 pt-6">
+          <h1 className="a-hero-title font-display text-4xl font-black text-yellow-900 leading-[1.08] mb-4 pt-6">
             Fresh Food.
             <br />
             Warm
             <br />
             Hospitality.
           </h1>
-
-          <p className="anim-hero-sub font-body text-yellow-700 text-base leading-relaxed mb-6 max-w-xs">
+          <p className="a-hero-sub font-body text-yellow-700 text-base leading-relaxed mb-6 max-w-xs">
             Authentic flavours made with fresh ingredients, cooked to order —
             every single day.
           </p>
-
           <div className="flex gap-2 flex-wrap">
             {["🛡️ FSSAI Certified", "✨ No Preservatives", "🛵 On Zomato"].map(
               (b) => (
                 <span
                   key={b}
-                  className="anim-hero-badge bg-white/10 border border-yellow-900/20 text-yellow-900 text-[11px] font-bold px-3 py-1.5 rounded-full"
+                  className="a-hero-badge bg-white/10 border border-yellow-900/20 text-yellow-900 text-[11px] font-bold px-3 py-1.5 rounded-full"
                 >
                   {b}
                 </span>
@@ -483,18 +504,18 @@ export default function AboutPage() {
             )}
           </div>
         </div>
-
-        <div className="absolute bottom-4 right-6 flex flex-col items-center gap-1 opacity-50">
-          <p className="text-[9px] tracking-widest uppercase text-[#3d1a00]">
+        <div className="a-hero-scroll absolute bottom-4 right-6 flex flex-col items-center gap-1">
+          <p className="text-[9px] tracking-widest uppercase text-[#3d1a00]/50">
             Scroll
           </p>
-          <ChevronDown className="w-4 h-4 text-[#3d1a00] animate-bounce" />
+          <ChevronDown className="w-4 h-4 text-[#3d1a00]/50 animate-bounce" />
         </div>
       </section>
 
       {/* ── TICKER ────────────────────────────────────────────────────── */}
       <div className="ticker-wrap bg-[#c17f24] py-3">
         <div ref={tickerRef} className="ticker-inner">
+          {/* 3 copies so the CSS loop is seamless at -33.333% */}
           {[...TICKER_ITEMS, ...TICKER_ITEMS, ...TICKER_ITEMS].map(
             (item, i) => (
               <span
@@ -510,12 +531,12 @@ export default function AboutPage() {
       </div>
 
       {/* ── STATS ─────────────────────────────────────────────────────── */}
-      <section ref={statsRef} className="bg-[#3d1a00] px-6 py-8">
+      <section className="a-stats-section bg-[#3d1a00] px-6 py-8">
         <div className="grid grid-cols-2 gap-6">
           {STATS.map((stat, i) => (
             <div key={i} className="text-center">
               <p className="font-display text-4xl font-black text-[#c17f24] leading-none">
-                <span className="anim-stat-num">0</span>
+                <span className="a-stat-num">0</span>
                 <span>{stat.suffix}</span>
               </p>
               <p className="text-[#c9a87c] text-xs font-semibold mt-1 tracking-wide">
@@ -531,20 +552,20 @@ export default function AboutPage() {
       {/* ── VALUES ────────────────────────────────────────────────────── */}
       <section className="px-6 py-10">
         <SectionLabel>Mission &amp; Values</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-2">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-2">
           What we stand for
         </h2>
-        <p className="anim-up font-body text-sm text-[#3d1a00]/60 mb-8 leading-relaxed">
+        <p className="a-up font-body text-sm text-[#3d1a00]/60 mb-8 leading-relaxed">
           These aren&apos;t just words on a wall — they&apos;re the decisions we
           make in the kitchen every single day.
         </p>
-        <div className="anim-grid grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {VALUES.map((v, i) => {
             const Icon = v.icon;
             return (
               <div
                 key={i}
-                className="anim-card flex gap-4 items-start bg-white rounded-2xl p-4 border border-[#f0d9b5] shadow-sm"
+                className="a-card flex gap-4 items-start bg-white rounded-2xl p-4 border border-[#f0d9b5] shadow-sm"
               >
                 <div className="w-10 h-10 bg-[#fff1e3] rounded-xl flex items-center justify-center shrink-0">
                   <Icon className="w-5 h-5 text-[#c17f24]" strokeWidth={2} />
@@ -568,16 +589,16 @@ export default function AboutPage() {
       {/* ── TEAM ──────────────────────────────────────────────────────── */}
       <section className="px-6 py-10">
         <SectionLabel>Meet the Team</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-8">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-8">
           The people behind
           <br />
           every bite
         </h2>
-        <div className="anim-grid space-y-5">
+        <div className="space-y-5">
           {TEAM.map((person, i) => (
             <div
               key={i}
-              className="anim-card bg-[#3d1a00] rounded-2xl p-5 text-[#fff1e3]"
+              className="a-card bg-[#3d1a00] rounded-2xl p-5 text-[#fff1e3]"
             >
               <div className="flex items-center gap-4 mb-3">
                 <div className="w-14 h-14 bg-[#c17f24]/20 border-2 border-[#c17f24]/40 rounded-2xl flex items-center justify-center text-3xl shrink-0">
@@ -608,12 +629,12 @@ export default function AboutPage() {
       {/* ── WHY US ────────────────────────────────────────────────────── */}
       <section className="px-6 py-10 bg-white">
         <SectionLabel>Why Choose Us</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-8">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-8">
           The Slice &amp; Serve
           <br />
           difference
         </h2>
-        <div className="anim-grid grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {[
             { icon: "🌿", label: "Fresh Daily" },
             { icon: "⚡", label: "Fast Service" },
@@ -626,7 +647,7 @@ export default function AboutPage() {
           ].map((item, i) => (
             <div
               key={i}
-              className="anim-card bg-[#fff1e3] rounded-2xl p-4 text-center border border-[#f0d9b5]"
+              className="a-card bg-[#fff1e3] rounded-2xl p-4 text-center border border-[#f0d9b5]"
             >
               <p className="text-2xl mb-2">{item.icon}</p>
               <p className="font-body font-black text-xs text-[#3d1a00]">
@@ -642,12 +663,12 @@ export default function AboutPage() {
       {/* ── HYGIENE ───────────────────────────────────────────────────── */}
       <section className="px-6 py-10">
         <SectionLabel>Hygiene &amp; Quality</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-2">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-2">
           Our kitchen is as
           <br />
           clean as your home
         </h2>
-        <p className="anim-up font-body text-sm text-[#3d1a00]/60 mb-8 leading-relaxed">
+        <p className="a-up font-body text-sm text-[#3d1a00]/60 mb-8 leading-relaxed">
           Every meal we serve carries our name — so hygiene is non-negotiable,
           not optional.
         </p>
@@ -655,7 +676,7 @@ export default function AboutPage() {
           {HYGIENE.map((item, i) => (
             <div
               key={i}
-              className="anim-hygiene flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-[#f0d9b5]"
+              className="a-hygiene flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-[#f0d9b5]"
             >
               <CheckCircle2
                 className="w-5 h-5 text-[#c17f24] fill-[#fff1e3] shrink-0"
@@ -667,7 +688,7 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
-        <div className="anim-up mt-6 bg-[#3d1a00] rounded-2xl px-5 py-4 flex items-center gap-4">
+        <div className="a-up mt-6 bg-[#3d1a00] rounded-2xl px-5 py-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-[#c17f24]/20 rounded-xl flex items-center justify-center shrink-0">
             <Award className="w-6 h-6 text-[#c17f24]" />
           </div>
@@ -690,19 +711,19 @@ export default function AboutPage() {
       {/* ── INGREDIENTS ───────────────────────────────────────────────── */}
       <section className="px-6 py-10 bg-[#3d1a00]/10">
         <SectionLabel>Our Ingredients</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold text-yellow-900 leading-tight mb-2">
+        <h2 className="a-heading font-display text-3xl font-bold text-yellow-900 leading-tight mb-2">
           Quality starts at
           <br />
           the source
         </h2>
-        <p className="anim-up font-body text-sm text-yellow-800 mb-8 leading-relaxed">
+        <p className="a-up font-body text-sm text-yellow-800 mb-8 leading-relaxed">
           We never take shortcuts with ingredients. Period.
         </p>
-        <div className="anim-grid grid grid-cols-1 gap-3">
+        <div className="grid grid-cols-1 gap-3">
           {INGREDIENTS.map((item, i) => (
             <div
               key={i}
-              className="anim-card flex items-center gap-4 bg-[#3d1a00]/20 border border-[#3d1a00]/10 rounded-xl px-4 py-3"
+              className="a-card flex items-center gap-4 bg-[#3d1a00]/20 border border-[#3d1a00]/10 rounded-xl px-4 py-3"
             >
               <span className="text-2xl shrink-0">{item.emoji}</span>
               <div>
@@ -719,11 +740,11 @@ export default function AboutPage() {
       {/* ── DELIVERY ──────────────────────────────────────────────────── */}
       <section className="px-6 py-8 bg-white">
         <SectionLabel>Order Online</SectionLabel>
-        <h2 className="anim-heading font-display text-2xl font-bold mb-6">
+        <h2 className="a-heading font-display text-2xl font-bold mb-6">
           Available on
         </h2>
-        <div className="anim-grid flex gap-4">
-          <div className="anim-card flex-1 bg-red-50 border border-red-100 rounded-2xl p-5 flex flex-col items-center gap-2">
+        <div className="flex gap-4">
+          <div className="a-card flex-1 bg-red-50 border border-red-100 rounded-2xl p-5 flex flex-col items-center gap-2">
             <span className="text-3xl">🔴</span>
             <p className="font-black text-base text-red-600">Zomato</p>
             <p className="text-xs text-gray-500 text-center">
@@ -738,19 +759,19 @@ export default function AboutPage() {
       {/* ── REVIEWS ───────────────────────────────────────────────────── */}
       <section className="px-6 py-10">
         <SectionLabel>Customer Love</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-2">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-2">
           Don&apos;t take our
           <br />
           word for it
         </h2>
-        <p className="anim-up font-body text-sm text-[#3d1a00]/60 mb-8">
+        <p className="a-up font-body text-sm text-[#3d1a00]/60 mb-8">
           Real words from real customers.
         </p>
-        <div className="anim-grid space-y-4">
+        <div className="space-y-4">
           {REVIEWS.map((r, i) => (
             <div
               key={i}
-              className="anim-card bg-white rounded-2xl p-5 border border-[#f0d9b5] shadow-sm"
+              className="a-card bg-white rounded-2xl p-5 border border-[#f0d9b5] shadow-sm"
             >
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -767,7 +788,7 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
-        <div className="anim-scale mt-6 bg-[#c17f24] rounded-2xl px-5 py-4 flex items-center justify-between">
+        <div className="a-scale mt-6 bg-[#c17f24] rounded-2xl px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-[#3d1a00] font-black text-2xl">4.9 ⭐</p>
             <p className="text-[#3d1a00]/70 text-xs font-semibold mt-0.5">
@@ -786,14 +807,14 @@ export default function AboutPage() {
       {/* ── FAQS ──────────────────────────────────────────────────────── */}
       <section className="px-6 py-10">
         <SectionLabel>FAQ</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold leading-tight mb-8">
+        <h2 className="a-heading font-display text-3xl font-bold leading-tight mb-8">
           Common questions
         </h2>
-        <div className="anim-grid space-y-3">
+        <div className="space-y-3">
           {FAQS.map((faq, i) => (
             <div
               key={i}
-              className="anim-card bg-white rounded-2xl border border-[#f0d9b5] overflow-hidden"
+              className="a-card bg-white rounded-2xl border border-[#f0d9b5] overflow-hidden"
             >
               <button
                 onClick={() => toggleFaq(i)}
@@ -808,7 +829,7 @@ export default function AboutPage() {
                 ref={(el) => {
                   faqRefs.current[i] = el;
                 }}
-                style={{ height: 0, opacity: 0, overflow: "hidden" }}
+                className="faq-body"
               >
                 <p className="px-5 pb-4 text-sm text-[#3d1a00]/65 leading-relaxed font-body">
                   {faq.a}
@@ -824,7 +845,7 @@ export default function AboutPage() {
       {/* ── VISIT US ──────────────────────────────────────────────────── */}
       <section className="px-6 py-10 bg-[#3d1a00]">
         <SectionLabel>Visit Us</SectionLabel>
-        <h2 className="anim-heading font-display text-3xl font-bold text-[#fff1e3] leading-tight mb-8">
+        <h2 className="a-heading font-display text-3xl font-bold text-[#fff1e3] leading-tight mb-8">
           Come say hello
         </h2>
         <div className="space-y-4">
@@ -838,19 +859,19 @@ export default function AboutPage() {
               Icon: Clock,
               title: "Opening Hours",
               lines: [
-                "Mon – Sun: 9:00 AM – 10:00 PM",
+                "Mon – Sun: 3:30 PM – 10:00 PM",
                 "Open all days including holidays",
               ],
             },
             {
               Icon: Phone,
               title: "Phone",
-              lines: ["+91 98765 43210", "WhatsApp orders welcome"],
+              lines: ["+91 9337867207", "WhatsApp orders (Party Order only)"],
             },
           ].map(({ Icon, title, lines }, i) => (
             <div
               key={i}
-              className="anim-left flex items-start gap-4 bg-white/5 border border-white/10 rounded-2xl px-5 py-4"
+              className="a-left flex items-start gap-4 bg-white/5 border border-white/10 rounded-2xl px-5 py-4"
             >
               <Icon className="w-5 h-5 text-[#c17f24] shrink-0 mt-0.5" />
               <div>
@@ -867,28 +888,34 @@ export default function AboutPage() {
             </div>
           ))}
         </div>
-        <div className="anim-up mt-5 h-36 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center">
-          <div className="text-center">
-            <MapPin className="w-6 h-6 text-[#c17f24] mx-auto mb-2" />
-            <p className="text-[#c9a87c] text-xs">Saheswari Club, Salipur</p>
-            <p className="text-[#c9a87c]/50 text-[10px] mt-1">
-              Tap to open in Maps
-            </p>
-          </div>
+        <div className="a-up mt-5 rounded-2xl overflow-hidden border border-white/10">
+          <iframe
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3737.6533378008357!2d86.10404967606583!3d20.479426706417755!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3a19136cde8116d5%3A0x1cbedbe7a25c752a!2sSLICE%20%26%20SERVE!5e0!3m2!1sen!2sin!4v1782717085208!5m2!1sen!2sin"
+            width="100%"
+            height="220"
+            style={{ border: 0, display: "block" }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="strict-origin-when-cross-origin"
+            title="Slice & Serve location"
+          />
         </div>
         <div className="mt-5 flex gap-3">
-          <button className="anim-scale flex-1 flex items-center justify-center gap-2 bg-white/10 border border-white/20 rounded-xl py-3 text-[#fff1e3] text-sm font-bold">
-            <Share2 className="w-4 h-4" /> Instagram
-          </button>
-          <button className="anim-scale flex-1 flex items-center justify-center gap-2 bg-white/10 border border-white/20 rounded-xl py-3 text-[#fff1e3] text-sm font-bold">
-            <ThumbsUp className="w-4 h-4" /> Facebook
+          <button
+            className="a-scale flex-1 flex items-center justify-center gap-2 rounded-xl py-3 text-white text-sm font-bold"
+            style={{
+              background:
+                "linear-gradient(135deg, #f58529, #dd2a7b, #8134af, #515bd4)",
+            }}
+          >
+            <FaInstagram size={18} /> Instagram
           </button>
         </div>
       </section>
 
       {/* ── CTA ───────────────────────────────────────────────────────── */}
       <section className="px-6 py-10 bg-[#c17f24]">
-        <div className="anim-up text-center">
+        <div className="a-up text-center">
           <p className="text-[#3d1a00]/60 text-[10px] font-black tracking-[0.25em] uppercase mb-3">
             Ready?
           </p>
@@ -900,10 +927,16 @@ export default function AboutPage() {
             feed you.
           </p>
           <div className="space-y-3">
-            <button className="w-full h-14 bg-[#3d1a00] text-[#fff1e3] font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform">
+            <button
+              onClick={() => router.push("/")}
+              className="w-full h-14 bg-[#3d1a00] text-[#fff1e3] font-black text-sm rounded-2xl flex items-center justify-center gap-2 shadow-xl active:scale-95 transition-transform"
+            >
               <Utensils className="w-5 h-5" /> View Our Menu
             </button>
-            <button className="w-full h-14 bg-white/30 border-2 border-[#3d1a00]/20 text-[#3d1a00] font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            <button
+              onClick={() => (window.location.href = "tel:9337867207")}
+              className="w-full h-14 bg-white/30 border-2 border-[#3d1a00]/20 text-[#3d1a00] font-black text-sm rounded-2xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            >
               <Phone className="w-5 h-5" /> Call to Order
             </button>
           </div>
