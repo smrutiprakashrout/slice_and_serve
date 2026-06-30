@@ -4,19 +4,25 @@ import Image from "next/image";
 import { MapPin, ChevronDown, ShoppingCart, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "@/lib/cart-store";
+import { useScrollDirection } from "@/lib/useScrollDirection";
 
 export default function TopBar() {
   const router = useRouter();
+  const visible = useScrollDirection(); // defaults to [data-scroll-container]
 
   // Subscribe to items array — re-renders instantly on every cart change
   const items = useCartStore((s) => s.items);
   const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
 
   return (
-    <>
+    <div
+      style={{ willChange: "transform", backfaceVisibility: "hidden" }}
+      className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 transform-gpu transition-transform duration-300 ease-in-out ${
+        visible ? "translate-y-0" : "-translate-y-full"
+      }`}
+    >
       {/* Logo / User / Cart row */}
-
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-[#fff1e3] z-50 flex justify-between items-center px-6 py-2">
+      <div className="bg-[#fff1e3] flex justify-between items-center px-6 py-2">
         <button
           onClick={() => router.push("/profile")}
           className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm active:scale-95 transition-transform"
@@ -45,10 +51,10 @@ export default function TopBar() {
       </div>
 
       {/* Location row */}
-      <header className="px-6 pb-4 pt-2 flex z-48 fixed w-full max-w-md h-26 justify-between items-center bg-[#fff1e3]">
+      <header className="px-6 pb-4 pt-2 flex justify-between items-center bg-[#fff1e3]">
         <div className="flex items-center w-full">
           <div className="flex flex-col justify-center items-center w-full">
-            <div className="flex bg-yellow-900 fixed top-16 z-50 px-4 py-1 rounded-md items-center gap-1 cursor-pointer">
+            <div className="flex bg-yellow-900 px-4 py-1 rounded-md items-center gap-1 cursor-pointer">
               <MapPin className="w-4 h-4 text-white" />
               <span className="text-sm font-bold text-white">
                 Saheswari Club, Salipur
@@ -58,6 +64,6 @@ export default function TopBar() {
           </div>
         </div>
       </header>
-    </>
+    </div>
   );
 }

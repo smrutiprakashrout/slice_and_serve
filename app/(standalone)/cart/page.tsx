@@ -182,18 +182,20 @@ export default function CartPage() {
         {/* Header */}
         <div className="fixed top-0 left-0 right-0 mx-auto w-full max-w-md bg-[#f0e6dc] shadow-xs z-50 flex items-center justify-between px-6 py-2">
           {" "}
-          <div className="flex items-center gap-2">
-            <ShoppingCart className="text-yellow-900" />
-            <h1 className="text-lg font-black text-yellow-950 leading-tight tracking-tight">
-              Basket
-            </h1>
-            <span className="w-5 h-5 bg-white text-yellow-900 text-xs font-black rounded-full flex items-center justify-center shadow-sm">
-              {totalItems}
-            </span>
+          <div className="bg-yellow-900 w-fit h-10 flex justify-center px-4 rounded-lg">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="text-white" />
+              <h1 className="text-lg font-black text-white leading-tight tracking-tight">
+                Basket
+              </h1>
+              <span className="w-5 h-5 bg-white text-yellow-900 text-xs font-black rounded-full flex items-center justify-center shadow-sm">
+                {totalItems}
+              </span>
+            </div>
           </div>
           <button
             onClick={() => router.back()}
-            className="w-10 h-8 bg-yellow-900 rounded-md flex items-center justify-center shadow-sm border border-[#e8d9cc] active:scale-95 transition-transform mt-0.5"
+            className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm border border-[#e8d9cc] active:scale-95 transition-transform mt-0.5"
           >
             <X className="w-4 h-4 text-white" strokeWidth={2.5} />
           </button>

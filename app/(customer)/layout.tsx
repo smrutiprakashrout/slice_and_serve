@@ -10,7 +10,9 @@ export default function CustomerLayout({
   return (
     <div className="max-w-md mx-auto w-full h-dvh relative flex flex-col bg-[#fff1e3]">
       <TopBar />
-      <div className="flex-1 overflow-y-auto">{children}</div>
+      <div data-scroll-container className="flex-1 overflow-y-auto">
+        {children}
+      </div>
       <BottomNav />
     </div>
   );
