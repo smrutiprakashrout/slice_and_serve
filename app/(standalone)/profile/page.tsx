@@ -1,9 +1,31 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { useSession, signIn, signOut } from "next-auth/react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
+import { MOCK_LOYALTY } from "@/lib/mock-user-data";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+
+export interface CustomerPreferences {
+  vegOnly: boolean;
+  orderUpdates: boolean;
+  offers: boolean;
+  newItems: boolean;
+}
+
+export interface CustomerProfile {
+  id: string;
+  _id: string;
+  name: string;
+  email: string;
+  photo?: string;
+  preferences: CustomerPreferences;
+  createdAt: string;
+  updatedAt: string;
+}
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,16 +69,6 @@ const AVATARS = [
 
 const avatarUrl = (seed: string) =>
   `https://api.dicebear.com/9.x/adventurer/svg?seed=${seed}&backgroundColor=ffdfbf,ffd5dc,c0aede,b6e3f4,d1d4f9&radius=50`;
-
-// ─── Mock user state ──────────────────────────────────────────────────────────
-const MOCK_USER = {
-  name: "Ravi Kumar",
-  phone: "+91 98765 43210",
-  email: "ravi@example.com",
-  memberSince: "March 2024",
-  stamps: 3,
-  totalOrders: 24,
-};
 
 // ─── Section row component ────────────────────────────────────────────────────
 function Row({
@@ -287,9 +299,13 @@ function AvatarPicker({
 function DeleteSheet({
   onClose,
   onConfirm,
+  isDeleting = false,
+  error = null,
 }: {
   onClose: () => void;
   onConfirm: () => void;
+  isDeleting?: boolean;
+  error?: string | null;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useGSAP(() => {
@@ -300,7 +316,7 @@ function DeleteSheet({
     <div className="fixed inset-0 z-[200] flex items-end justify-center">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-[2px]"
-        onClick={onClose}
+        onClick={isDeleting ? undefined : onClose}
       />
       <div
         ref={ref}
@@ -318,15 +334,30 @@ function DeleteSheet({
           This will permanently delete your account, order history, and loyalty
           stamps. This cannot be undone.
         </p>
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600 text-center font-medium">
+            {error}
+          </div>
+        )}
         <button
+          disabled={isDeleting}
           onClick={onConfirm}
-          className="w-full h-13 py-3.5 bg-red-500 text-white font-black text-sm rounded-xl mb-3 active:scale-95 transition-transform"
+          className={`w-full h-13 py-3.5 bg-red-500 text-white font-black text-sm rounded-xl mb-3 transition-transform ${
+            isDeleting
+              ? "opacity-60 cursor-not-allowed"
+              : "active:scale-95"
+          }`}
         >
-          Yes, delete my account
+          {isDeleting ? "Deleting account..." : "Yes, delete my account"}
         </button>
         <button
+          disabled={isDeleting}
           onClick={onClose}
-          className="w-full h-13 py-3.5 bg-[#f5e6d0] text-[#3d1a00] font-black text-sm rounded-xl active:scale-95 transition-transform"
+          className={`w-full h-13 py-3.5 bg-[#f5e6d0] text-[#3d1a00] font-black text-sm rounded-xl transition-transform ${
+            isDeleting
+              ? "opacity-60 cursor-not-allowed"
+              : "active:scale-95"
+          }`}
         >
           Cancel
         </button>
@@ -389,25 +420,161 @@ export default function ProfilePage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Auth state (UI toggle only)
-  const [isSignedIn, setIsSignedIn] = useState(true);
+  // ── Real session from Auth.js ─────────────────────────────────────────────
+  const { data: session, status } = useSession();
+  const isSignedIn = status === "authenticated";
 
-  // Profile state
+  // ── Real customer profile from /api/me via SWR ─────────────────────────────
+  const {
+    data: customer,
+    error: customerError,
+    isLoading: isCustomerLoading,
+    mutate,
+  } = useSWR<CustomerProfile>(isSignedIn ? "/api/me" : null, fetcher);
+
+  // Profile state — name is initialised from session or customer profile
   const [avatarSeed, setAvatarSeed] = useState("Arjun");
-  const [name, setName] = useState(MOCK_USER.name);
+  // Tracks whether the user has explicitly chosen a cartoon avatar via the
+  // picker. Until they do, we prefer their real Google profile photo (if
+  // Google provided one) and only fall back to the cartoon avatar when no
+  // Google photo exists.
+  const [useCartoonAvatar, setUseCartoonAvatar] = useState(false);
+  const [name, setName] = useState("");
   const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState(name);
+  const [draftName, setDraftName] = useState("");
+
+  // Sync name from session or customer profile when it first loads
+  const initialName = session?.user?.name ?? customer?.name ?? "";
+  const [syncedName, setSyncedName] = useState(false);
+  if (!syncedName && initialName) {
+    setName(initialName);
+    setDraftName(initialName);
+    setSyncedName(true);
+  }
 
   // Sheet visibility
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
   const [showSignOutSheet, setShowSignOutSheet] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(
+    null,
+  );
 
-  // Preference toggles
-  const [vegOnly, setVegOnly] = useState(false);
-  const [orderUpdates, setOrderUpdates] = useState(true);
-  const [offers, setOffers] = useState(true);
-  const [newItems, setNewItems] = useState(false);
+  // Delete account flow
+  const handleDeleteAccount = async () => {
+    setIsDeletingAccount(true);
+    setDeleteAccountError(null);
+
+    try {
+      const res = await fetch("/api/me", {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const message =
+          errorData?.error?.message ||
+          "Failed to delete account. Please try again.";
+        throw new Error(message);
+      }
+
+      setShowDeleteSheet(false);
+      await signOut({ callbackUrl: "/" });
+    } catch (err) {
+      console.error("Account deletion error:", err);
+      setDeleteAccountError(
+        err instanceof Error
+          ? err.message
+          : "Failed to delete account. Please try again.",
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  // Preference values from /api/me (with schema defaults)
+  const preferences: CustomerPreferences = customer?.preferences ?? {
+    vegOnly: false,
+    orderUpdates: true,
+    offers: true,
+    newItems: false,
+  };
+
+  const vegOnly = preferences.vegOnly;
+  const orderUpdates = preferences.orderUpdates;
+  const offers = preferences.offers;
+  const newItems = preferences.newItems;
+
+  const handleTogglePreference = async (key: keyof CustomerPreferences) => {
+    const currentVal = preferences[key];
+    const nextVal = !currentVal;
+
+    const baseCustomer: CustomerProfile = customer ?? {
+      id: session?.user?.id ?? "",
+      _id: session?.user?.id ?? "",
+      name: session?.user?.name ?? "",
+      email: session?.user?.email ?? "",
+      preferences: {
+        vegOnly: false,
+        orderUpdates: true,
+        offers: true,
+        newItems: false,
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const updatedCustomer: CustomerProfile = {
+      ...baseCustomer,
+      preferences: {
+        ...baseCustomer.preferences,
+        [key]: nextVal,
+      },
+    };
+
+    try {
+      await mutate(
+        async () => {
+          const res = await fetch("/api/me", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              preferences: {
+                [key]: nextVal,
+              },
+            }),
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(
+              errData?.error?.message || `Failed to update ${key}`,
+            );
+          }
+          return await res.json();
+        },
+        {
+          optimisticData: updatedCustomer,
+          rollbackOnError: true,
+          revalidate: false,
+        },
+      );
+    } catch (err) {
+      console.error("Failed to update preference:", err);
+    }
+  };
+
+  // still mocked — real data lands in P6-5 (loyalty) and P5-8 (orders)
+  const { memberSince, stamps, totalOrders } = MOCK_LOYALTY;
+
+  // Resolve which avatar image to show: Google's real profile photo by
+  // default (if available), unless the user has picked a cartoon avatar
+  // from the picker, or Google didn't provide a photo at all.
+  const googlePhoto = session?.user?.image ?? customer?.photo ?? null;
+  const showCartoonAvatar = useCartoonAvatar || !googlePhoto;
+  const currentAvatarSrc = showCartoonAvatar
+    ? avatarUrl(avatarSeed)
+    : googlePhoto!;
 
   // Entrance animation
   useGSAP(
@@ -429,6 +596,15 @@ export default function ProfilePage() {
     setEditingName(false);
   };
 
+  // ── Loading state — avoids flashing signed-out UI during session check ──
+  if (status === "loading") {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#c17f24] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   // ── Signed-out state ──────────────────────────────────────────────────────
   if (!isSignedIn) {
     return (
@@ -448,7 +624,7 @@ export default function ProfilePage() {
           profile.
         </p>
         <button
-          onClick={() => setIsSignedIn(true)}
+          onClick={() => signIn("google", { callbackUrl: "/profile" })}
           className="w-full max-w-xs h-14 bg-[#3d1a00] text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform"
         >
           <LogIn className="w-5 h-5" />
@@ -501,9 +677,9 @@ export default function ProfilePage() {
             >
               <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-[#c17f24] shadow-xl">
                 <img
-                  src={avatarUrl(avatarSeed)}
+                  src={currentAvatarSrc}
                   alt="avatar"
-                  className="w-full h-full"
+                  className="w-full h-full object-cover"
                 />
               </div>
               {/* Edit badge */}
@@ -553,17 +729,12 @@ export default function ProfilePage() {
               </button>
             )}
 
-            {/* Verified phone */}
-            <div className="flex items-center gap-1.5 mb-3">
-              <p className="text-[#c9a87c] text-sm">{MOCK_USER.phone}</p>
-              <BadgeCheck className="w-4 h-4 text-[#c17f24]" strokeWidth={2} />
-            </div>
-
             {/* Stats strip */}
             <div className="flex items-center gap-5 mt-1">
               <div className="text-center">
+                {/* still mocked — real data lands in P5-8 (orders) */}
                 <p className="text-yellow-700 font-black text-lg leading-none">
-                  {MOCK_USER.totalOrders}
+                  {totalOrders}
                 </p>
                 <p className="text-[#c9a87c] text-[10px] font-semibold mt-0.5">
                   Orders
@@ -571,8 +742,9 @@ export default function ProfilePage() {
               </div>
               <div className="w-px h-8 bg-white/15" />
               <div className="text-center">
+                {/* stamps from MOCK_LOYALTY — still mocked — real data lands in P6-5 (loyalty) */}
                 <p className="text-yellow-700 font-black text-lg leading-none">
-                  {MOCK_USER.stamps}/6
+                  {stamps}/6
                 </p>
                 <p className="text-[#c9a87c] text-[10px] font-semibold mt-0.5">
                   Stamps
@@ -591,14 +763,27 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Member since tag */}
+        {/* Member since tag — still mocked — real data lands in P6-5 (loyalty) */}
         <div className="profile-section flex justify-center -mt-4 mb-5 relative z-10">
           <div className="bg-[#c17f24] text-[#3d1a00] text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full shadow-md">
-            Member since {MOCK_USER.memberSince}
+            Member since {memberSince}
           </div>
         </div>
 
         <div className="space-y-3">
+          {customerError && (
+            <div className="mx-5 mb-3 p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center justify-between text-xs text-amber-900">
+              <span>Failed to load profile details.</span>
+              <button
+                type="button"
+                onClick={() => mutate()}
+                className="font-bold underline text-[#c17f24] hover:text-[#3d1a00] transition-colors ml-2"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
           {/* ── 2. ACTIVITY ───────────────────────────────────────── */}
           <SectionCard>
             <div className="px-4 pt-3 pb-1">
@@ -606,16 +791,18 @@ export default function ProfilePage() {
                 Activity
               </p>
             </div>
+            {/* still mocked — real data lands in P5-8 (orders) */}
             <Row
               icon={ShoppingBag}
               label="My Orders"
               sub="1 order currently active"
             />
             <Divider />
+            {/* still mocked — real data lands in P6-5 (loyalty) */}
             <Row
               icon={Gift}
               label="Loyalty Rewards"
-              sub={`${MOCK_USER.stamps} of 6 stamps collected`}
+              sub={`${stamps} of 6 stamps collected`}
             />
           </SectionCard>
 
@@ -630,9 +817,12 @@ export default function ProfilePage() {
               icon={Leaf}
               label="Veg only mode"
               sub="Hide non-veg items from menu"
-              onClick={() => setVegOnly(!vegOnly)}
+              onClick={() => handleTogglePreference("vegOnly")}
               right={
-                <Toggle on={vegOnly} onToggle={() => setVegOnly(!vegOnly)} />
+                <Toggle
+                  on={vegOnly}
+                  onToggle={() => handleTogglePreference("vegOnly")}
+                />
               }
             />
           </SectionCard>
@@ -648,11 +838,11 @@ export default function ProfilePage() {
               icon={Bell}
               label="Order updates"
               sub="Status changes for your orders"
-              onClick={() => setOrderUpdates(!orderUpdates)}
+              onClick={() => handleTogglePreference("orderUpdates")}
               right={
                 <Toggle
                   on={orderUpdates}
-                  onToggle={() => setOrderUpdates(!orderUpdates)}
+                  onToggle={() => handleTogglePreference("orderUpdates")}
                 />
               }
             />
@@ -661,18 +851,47 @@ export default function ProfilePage() {
               icon={Star}
               label="Offers & promos"
               sub="Deals and discount codes"
-              onClick={() => setOffers(!offers)}
-              right={<Toggle on={offers} onToggle={() => setOffers(!offers)} />}
+              onClick={() => handleTogglePreference("offers")}
+              right={
+                <Toggle
+                  on={offers}
+                  onToggle={() => handleTogglePreference("offers")}
+                />
+              }
             />
             <Divider />
             <Row
               icon={Bell}
               label="New menu items"
               sub="When we add something fresh"
-              onClick={() => setNewItems(!newItems)}
+              onClick={() => handleTogglePreference("newItems")}
               right={
-                <Toggle on={newItems} onToggle={() => setNewItems(!newItems)} />
+                <Toggle
+                  on={newItems}
+                  onToggle={() => handleTogglePreference("newItems")}
+                />
               }
+            />
+          </SectionCard>
+
+          {/* ── 6. ACCOUNT ────────────────────────────────────────── */}
+          <SectionCard>
+            <div className="px-4 pt-3 pb-1">
+              <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24]">
+                Account
+              </p>
+            </div>
+            <Row
+              icon={ShieldCheck}
+              label="Signed in with Google"
+              sub={session?.user?.email ?? customer?.email ?? ""}
+              right={<BadgeCheck className="w-5 h-5 text-[#c17f24] shrink-0" />}
+            />
+            <Divider />
+            <Row
+              icon={MapPin}
+              label="Saved addresses"
+              sub="Manage delivery locations"
             />
           </SectionCard>
 
@@ -707,29 +926,8 @@ export default function ProfilePage() {
             <Divider />
             <Row
               icon={Star}
-              label="Rate the app"
+              label="Rate on Google Maps"
               sub="Enjoying Slice and Serve?"
-            />
-          </SectionCard>
-
-          {/* ── 6. ACCOUNT ────────────────────────────────────────── */}
-          <SectionCard>
-            <div className="px-4 pt-3 pb-1">
-              <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24]">
-                Account
-              </p>
-            </div>
-            <Row
-              icon={ShieldCheck}
-              label="Signed in with Google"
-              sub={MOCK_USER.email}
-              right={<BadgeCheck className="w-5 h-5 text-[#c17f24] shrink-0" />}
-            />
-            <Divider />
-            <Row
-              icon={MapPin}
-              label="Saved addresses"
-              sub="Manage delivery locations"
             />
           </SectionCard>
 
@@ -747,7 +945,10 @@ export default function ProfilePage() {
               label="Delete account"
               sub="Permanently remove all your data"
               danger
-              onClick={() => setShowDeleteSheet(true)}
+              onClick={() => {
+                setDeleteAccountError(null);
+                setShowDeleteSheet(true);
+              }}
             />
           </SectionCard>
 
@@ -762,25 +963,32 @@ export default function ProfilePage() {
       {showAvatarPicker && (
         <AvatarPicker
           current={avatarSeed}
-          onSelect={setAvatarSeed}
+          onSelect={(seed) => {
+            setAvatarSeed(seed);
+            setUseCartoonAvatar(true);
+          }}
           onClose={() => setShowAvatarPicker(false)}
         />
       )}
       {showDeleteSheet && (
         <DeleteSheet
-          onClose={() => setShowDeleteSheet(false)}
-          onConfirm={() => {
-            setIsSignedIn(false);
-            setShowDeleteSheet(false);
+          onClose={() => {
+            if (!isDeletingAccount) {
+              setDeleteAccountError(null);
+              setShowDeleteSheet(false);
+            }
           }}
+          onConfirm={handleDeleteAccount}
+          isDeleting={isDeletingAccount}
+          error={deleteAccountError}
         />
       )}
       {showSignOutSheet && (
         <SignOutSheet
           onClose={() => setShowSignOutSheet(false)}
           onConfirm={() => {
-            setIsSignedIn(false);
             setShowSignOutSheet(false);
+            signOut({ callbackUrl: "/" });
           }}
         />
       )}

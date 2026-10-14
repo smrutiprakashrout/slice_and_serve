@@ -1,6 +1,7 @@
 // app/layout.tsx  ← bare shell, no nav bars here
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Slice and Serve",
@@ -14,7 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className="antialiased bg-black text-white">{children}</body>
+      <body className="antialiased bg-black text-white">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

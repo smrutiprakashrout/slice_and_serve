@@ -6,321 +6,16 @@ import { useGSAP } from "@gsap/react";
 import Image from "next/image";
 import { Star } from "lucide-react";
 import { useCartStore } from "@/lib/cart-store";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
+import type { Category, MenuItem } from "@/lib/menu-data";
+
+interface MenuApiResponse {
+  categories: Category[];
+  items: MenuItem[];
+}
 
 gsap.registerPlugin(useGSAP);
-
-// ─── Types & Data (unchanged from your file) ──────────────────────────────────
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  icon: string;
-}
-
-interface MenuItem {
-  id: string;
-  name: string;
-  subtitle: string;
-  price: number;
-  rating: number;
-  categorySlug: string;
-  type: "veg" | "non-veg";
-  featured: boolean;
-  image: string;
-  available: boolean;
-}
-
-const CATEGORIES: Category[] = [
-  { id: "1", name: "All", slug: "all", icon: "" },
-  { id: "2", name: "Sandwitch", slug: "sandwitch", icon: "🥪" },
-  { id: "3", name: "Burger", slug: "burger", icon: "🍔" },
-  { id: "4", name: "Staters", slug: "staters", icon: "🍟" },
-  { id: "5", name: "Drinks", slug: "drinks", icon: "🥤" },
-];
-
-const MOCK_MENU: MenuItem[] = [
-  // BURGERS
-  {
-    id: "b1",
-    name: "Chicken Burger",
-    subtitle: "Classic chicken patty",
-    price: 79,
-    rating: 4.5,
-    categorySlug: "burger",
-    type: "non-veg",
-    featured: true,
-    image: "/images/burger.jpg",
-    available: true,
-  },
-  // SANDWICHES
-  {
-    id: "s1",
-    name: "Chicken 65 Sandwich",
-    subtitle: "Spicy Non-Veg",
-    price: 79,
-    rating: 4.8,
-    categorySlug: "sandwitch",
-    type: "non-veg",
-    featured: true,
-    image: "/images/65_sandwitch.jpg",
-    available: true,
-  },
-  {
-    id: "s2",
-    name: "Chilli Chicken Sandwich",
-    subtitle: "Non-Veg",
-    price: 75,
-    rating: 4.6,
-    categorySlug: "sandwitch",
-    type: "non-veg",
-    featured: false,
-    image: "/images/chilli_chicken_sand.jpg",
-    available: true,
-  },
-  {
-    id: "s3",
-    name: "Chicken Sandwich",
-    subtitle: "Classic Non-Veg",
-    price: 69,
-    rating: 4.4,
-    categorySlug: "sandwitch",
-    type: "non-veg",
-    featured: false,
-    image: "/images/chicken_sand.jpg",
-    available: true,
-  },
-  {
-    id: "s4",
-    name: "Egg Sandwich",
-    subtitle: "Non-Veg",
-    price: 59,
-    rating: 4.3,
-    categorySlug: "sandwitch",
-    type: "non-veg",
-    featured: false,
-    image: "/images/egg_sand.jpg",
-    available: false,
-  },
-  {
-    id: "s5",
-    name: "Chilli Mushroom Sandwich",
-    subtitle: "Spicy Veg",
-    price: 65,
-    rating: 4.5,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: true,
-    image: "/images/Chilli_mushroom_sand.jpg",
-    available: true,
-  },
-  {
-    id: "s6",
-    name: "Mushroom Manchurian Sandwich",
-    subtitle: "Indo-Chinese Veg",
-    price: 65,
-    rating: 4.7,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: false,
-    image: "/images/Mushroom_sand.jpg",
-    available: true,
-  },
-  {
-    id: "s7",
-    name: "Cheese & Corn Sandwich",
-    subtitle: "Veg",
-    price: 59,
-    rating: 4.6,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: false,
-    image: "/images/cheese_and_corn_sand.jpg",
-    available: true,
-  },
-  {
-    id: "s8",
-    name: "Veg Sandwich with Cheese",
-    subtitle: "Veg",
-    price: 49,
-    rating: 4.4,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: false,
-    image: "/images/Veg_Sand.jpg",
-    available: true,
-  },
-  {
-    id: "s9",
-    name: "Nutella Sandwich",
-    subtitle: "Sweet Veg",
-    price: 85,
-    rating: 4.9,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: false,
-    image: "/images/nutella_sandwich.jpg",
-    available: true,
-  },
-  {
-    id: "s10",
-    name: "Paneer Sandwich",
-    subtitle: "Veg",
-    price: 79,
-    rating: 4.7,
-    categorySlug: "sandwitch",
-    type: "veg",
-    featured: false,
-    image: "/images/Panner_sandwitch.jpg",
-    available: true,
-  },
-  // STARTERS
-  {
-    id: "st1",
-    name: "Chicken Lollipop",
-    subtitle: "04 PC | Non-Veg",
-    price: 129,
-    rating: 4.9,
-    categorySlug: "staters",
-    type: "non-veg",
-    featured: true,
-    image: "/images/snacks/Chicken_Lollipop.jpg",
-    available: true,
-  },
-  {
-    id: "st2",
-    name: "Chicken Kabab",
-    subtitle: "10 PC | Non-Veg",
-    price: 75,
-    rating: 4.7,
-    categorySlug: "staters",
-    type: "non-veg",
-    featured: false,
-    image: "/images/snacks/chicken_kabab.jpg",
-    available: true,
-  },
-  {
-    id: "st3",
-    name: "Finger Chicken",
-    subtitle: "12 PC | Non-Veg",
-    price: 79,
-    rating: 4.5,
-    categorySlug: "staters",
-    type: "non-veg",
-    featured: false,
-    image: "/images/snacks/finger_chicken.jpg",
-    available: true,
-  },
-  {
-    id: "st4",
-    name: "Chicken Pakoda",
-    subtitle: "06 PC | Non-Veg",
-    price: 69,
-    rating: 4.6,
-    categorySlug: "staters",
-    type: "non-veg",
-    featured: false,
-    image: "/images/snacks/chicken_pocoda.jpg",
-    available: true,
-  },
-  {
-    id: "st5",
-    name: "Finger Paneer",
-    subtitle: "12 PC | Veg",
-    price: 85,
-    rating: 4.7,
-    categorySlug: "staters",
-    type: "veg",
-    featured: false,
-    image: "/images/snacks/veg/finger_panner.jpg",
-    available: true,
-  },
-  {
-    id: "st6",
-    name: "Paneer Kabab",
-    subtitle: "10 PC | Veg",
-    price: 85,
-    rating: 4.8,
-    categorySlug: "staters",
-    type: "veg",
-    featured: false,
-    image: "/images/snacks/veg/paneer_kabab.jpg",
-    available: true,
-  },
-  {
-    id: "st7",
-    name: "Crispy Corn",
-    subtitle: "Veg",
-    price: 69,
-    rating: 4.5,
-    categorySlug: "staters",
-    type: "veg",
-    featured: false,
-    image: "/images/snacks/veg/Crispy_Corn.jpg",
-    available: true,
-  },
-  {
-    id: "st8",
-    name: "French Fries",
-    subtitle: "Veg",
-    price: 59,
-    rating: 4.4,
-    categorySlug: "staters",
-    type: "veg",
-    featured: false,
-    image: "/images/snacks/veg/Fries.jpg",
-    available: true,
-  },
-  // DRINKS
-  {
-    id: "d1",
-    name: "Blue Angel",
-    subtitle: "Refreshing mocktail",
-    price: 49,
-    rating: 4.6,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-    image: "/images/drink/blue_angel.jpg",
-    available: true,
-  },
-  {
-    id: "d2",
-    name: "Peach Ice Tea",
-    subtitle: "Chilled sweet tea",
-    price: 49,
-    rating: 4.7,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: true,
-    image: "/images/drink/peach_iced_tea.jpg",
-    available: true,
-  },
-  {
-    id: "d3",
-    name: "Lemon Ice Tea",
-    subtitle: "Classic citrus tea",
-    price: 49,
-    rating: 4.5,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-    image: "/images/drink/lemon_ice_tea.jpg",
-    available: true,
-  },
-  {
-    id: "d4",
-    name: "Watermelon Sparkler",
-    subtitle: "Fizzy summer cooler",
-    price: 49,
-    rating: 4.8,
-    categorySlug: "drinks",
-    type: "veg",
-    featured: false,
-    image: "/images/drink/Watermelon_Sparkling.png",
-    available: false,
-  },
-];
 
 // ─── Veg/Non-Veg icon (unchanged) ─────────────────────────────────────────────
 
@@ -340,6 +35,14 @@ const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MobileMenu() {
+  const { data, error, isLoading, mutate } = useSWR<MenuApiResponse>(
+    "/api/menu",
+    fetcher,
+  );
+
+  const menuItems = data?.items ?? [];
+  const categoriesList = data?.categories ?? [];
+
   // activeCategory — which subcategory chip is active ("all" = none filter)
   const [activeCategory, setActiveCategory] = useState<string>("all");
   // dietFilter — "veg" | "non-veg" | "filter" (all diets) | "all" (full reset)
@@ -374,7 +77,7 @@ export default function MobileMenu() {
   // "all" diet tab = full menu (ignore category too, already reset above)
   // "filter" = all diets within selected category
   // "veg"/"non-veg" = filter by type within selected category
-  const categoryFiltered = MOCK_MENU.filter((item) =>
+  const categoryFiltered = menuItems.filter((item) =>
     activeCategory === "all" ? true : item.categorySlug === activeCategory,
   );
   const filteredMenu = categoryFiltered.filter((item) => {
@@ -388,17 +91,18 @@ export default function MobileMenu() {
     (i) => i.type === "non-veg",
   ).length;
   const filterCount = categoryFiltered.length;
-  const allCount = MOCK_MENU.length;
+  const allCount = menuItems.length;
 
-  const otherCategories = CATEGORIES.filter((c) => c.slug !== "all");
+  const otherCategories = categoriesList.filter((c) => c.slug !== "all");
 
   // ── Add to cart with a quick scale animation on the card ──
   const handleAdd = (item: MenuItem) => {
+    if (!item.available) return;
     addItem({
       id: item.id,
       name: item.name,
       image: item.image,
-      price: item.price, // ← real price from MOCK_MENU
+      price: item.price,
       type: item.type === "veg" ? "veg" : "nonveg",
     });
     // Micro-animation: briefly scale the card
@@ -510,117 +214,170 @@ export default function MobileMenu() {
 
           {/* Menu Grid */}
           <div className="px-6 pb-36">
-            <div className="grid grid-cols-2 gap-4">
-              {filteredMenu.map((item) => {
-                const qty = getQty(item.id);
-                return (
+            {isLoading ? (
+              <div className="grid grid-cols-2 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((n) => (
                   <div
-                    id={`card-${item.id}`}
-                    key={`menu-${item.id}`}
-                    className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full relative"
+                    key={`skeleton-${n}`}
+                    className="bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full animate-pulse"
                   >
-                    {/* Image */}
-                    <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
-                      {item.image ? (
-                        <Image
-                          src={item.image}
-                          alt={item.name}
-                          width={100}
-                          height={100}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
-                          Image
-                        </span>
-                      )}
-                      <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm z-10">
-                        <DietIcon type={item.type} />
-                      </div>
-                      {!item.available && (
-                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] flex items-center justify-center z-20">
-                          <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-md shadow-sm">
-                            Out of Stock
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Content */}
-                    <div
-                      className={`p-3 flex flex-col flex-1 justify-between ${!item.available ? "opacity-75" : ""}`}
-                    >
+                    <div className="h-32 bg-gray-200/80 w-full" />
+                    <div className="p-3 flex flex-col flex-1 justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold text-[15px] text-gray-900 leading-tight mb-[2px]">
-                          {item.name}
-                        </h3>
-                        <p className="text-[11px] text-gray-500 truncate">
-                          {item.subtitle}
-                        </p>
+                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1.5" />
+                        <div className="h-3 bg-gray-100 rounded w-1/2" />
                       </div>
-
-                      {/* Price + Add/Qty stepper */}
-                      <div className="flex items-center justify-between mt-3 pt-1">
-                        <span className="font-extrabold text-sm text-gray-900">
-                          ₹{item.price}
-                        </span>
-
-                        {/* Add → "Added ✓" on tap, inline stepper for qty */}
-                        {!item.available ? (
-                          <button
-                            disabled
-                            className="font-bold text-xs px-4 py-1.5 rounded-lg bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"
-                          >
-                            Sold Out
-                          </button>
-                        ) : qty > 0 ? (
-                          <div className="flex flex-col items-end gap-1">
-                            {/* "Added" pill — white bg, black text, yellow border */}
-                            <div className="flex items-center gap-1 bg-white border-2 border-yellow-900 rounded-lg px-2 py-1">
-                              <span className="font-black text-[11px] text-black">
-                                Added ✓
-                              </span>
-                            </div>
-                            {/* Qty stepper below */}
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => removeOne(item.id)}
-                                className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
-                              >
-                                −
-                              </button>
-                              <span className="font-black text-xs text-gray-900 w-4 text-center">
-                                {qty}
-                              </span>
-                              <button
-                                onClick={() => handleAdd(item)}
-                                className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
-                              >
-                                +
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => handleAdd(item)}
-                            className="font-bold text-xs px-4 py-1.5 rounded-lg bg-[#fdc647] text-black hover:bg-yellow-400 transition-all duration-200 shadow-sm active:scale-95"
-                          >
-                            Add
-                          </button>
-                        )}
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="h-4 bg-gray-200 rounded w-10" />
+                        <div className="h-7 bg-gray-200 rounded-lg w-14" />
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {filteredMenu.length === 0 && (
-              <div className="text-center py-10">
-                <p className="text-gray-500 font-medium text-sm">
-                  No items found in this category.
+                ))}
+              </div>
+            ) : error ? (
+              <div className="bg-white/80 border border-yellow-900/20 rounded-2xl p-6 text-center shadow-sm my-6">
+                <p className="text-sm font-semibold text-gray-800 mb-1">
+                  Failed to load menu
+                </p>
+                <p className="text-xs text-gray-500 mb-4">
+                  {error?.message || "Please check your connection and try again."}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => mutate()}
+                  className="px-4 py-2 bg-yellow-900 text-white text-xs font-bold rounded-lg hover:bg-yellow-800 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : menuItems.length === 0 ? (
+              <div className="bg-white/80 border border-yellow-900/10 rounded-2xl p-8 text-center shadow-sm my-6">
+                <p className="text-gray-700 font-bold text-sm mb-1">
+                  Nothing available right now
+                </p>
+                <p className="text-gray-500 text-xs">
+                  Check back soon for delicious new items!
                 </p>
               </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  {filteredMenu.map((item) => {
+                    const qty = getQty(item.id);
+                    return (
+                      <div
+                        id={`card-${item.id}`}
+                        key={`menu-${item.id}`}
+                        className={`bg-white rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.03)] border border-gray-100 flex flex-col h-full relative ${
+                          !item.available ? "opacity-50" : ""
+                        }`}
+                      >
+                        {/* Image */}
+                        <div className="h-32 bg-gray-100 relative w-full flex items-center justify-center shrink-0 overflow-hidden">
+                          {item.image ? (
+                            <Image
+                              src={item.image}
+                              alt={item.name}
+                              width={100}
+                              height={100}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-xs text-gray-400 font-bold tracking-widest uppercase">
+                              Image
+                            </span>
+                          )}
+                          <div className="absolute top-2 right-2 bg-white rounded p-[3px] shadow-sm z-10">
+                            <DietIcon type={item.type} />
+                          </div>
+                          {!item.available && (
+                            <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] flex items-center justify-center z-20 pointer-events-none">
+                              <span className="bg-black text-white text-[10px] font-bold px-2 py-1 uppercase tracking-wider rounded-md shadow-sm">
+                                Unavailable
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div
+                          className="p-3 flex flex-col flex-1 justify-between"
+                        >
+                          <div>
+                            <h3 className="font-semibold text-[15px] text-gray-900 leading-tight mb-[2px]">
+                              {item.name}
+                            </h3>
+                            <p className="text-[11px] text-gray-500 truncate">
+                              {item.subtitle}
+                            </p>
+                          </div>
+
+                          {/* Price + Add/Qty stepper */}
+                          <div className="flex items-center justify-between mt-3 pt-1">
+                            <span className="font-extrabold text-sm text-gray-900">
+                              ₹{item.price}
+                            </span>
+
+                            {/* Add → "Added ✓" on tap, inline stepper for qty */}
+                            {!item.available ? (
+                              <button
+                                disabled
+                                type="button"
+                                className="font-bold text-xs px-4 py-1.5 rounded-lg bg-gray-200 text-gray-500 cursor-not-allowed shadow-none"
+                              >
+                                Unavailable
+                              </button>
+                            ) : qty > 0 ? (
+                              <div className="flex flex-col items-end gap-1">
+                                {/* "Added" pill — white bg, black text, yellow border */}
+                                <div className="flex items-center gap-1 bg-white border-2 border-yellow-900 rounded-lg px-2 py-1">
+                                  <span className="font-black text-[11px] text-black">
+                                    Added ✓
+                                  </span>
+                                </div>
+                                {/* Qty stepper below */}
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => removeOne(item.id)}
+                                    className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
+                                  >
+                                    −
+                                  </button>
+                                  <span className="font-black text-xs text-gray-900 w-4 text-center">
+                                    {qty}
+                                  </span>
+                                  <button
+                                    onClick={() => handleAdd(item)}
+                                    className="w-5 h-5 rounded-md bg-yellow-900 text-white font-black text-sm flex items-center justify-center active:scale-90 transition-transform"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => handleAdd(item)}
+                                className="font-bold text-xs px-4 py-1.5 rounded-lg bg-[#fdc647] text-black hover:bg-yellow-400 transition-all duration-200 shadow-sm active:scale-95"
+                              >
+                                Add
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {filteredMenu.length === 0 && (
+                  <div className="text-center py-10">
+                    <p className="text-gray-500 font-medium text-sm">
+                      No items found in this category.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

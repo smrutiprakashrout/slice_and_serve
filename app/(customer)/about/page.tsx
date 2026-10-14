@@ -19,6 +19,10 @@ import {
   Utensils,
   CheckCircle2,
   ChevronRight,
+  Zap,
+  Wallet,
+  Smartphone,
+  Ban,
 } from "lucide-react";
 import { FaInstagram, FaFacebook } from "react-icons/fa";
 
@@ -636,25 +640,30 @@ export default function AboutPage() {
         </h2>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: "🌿", label: "Fresh Daily" },
-            { icon: "⚡", label: "Fast Service" },
-            { icon: "💰", label: "Affordable" },
-            { icon: "🛡️", label: "FSSAI Certified" },
-            { icon: "👨‍👩‍👧", label: "Family Friendly" },
-            { icon: "📱", label: "Online Ordering" },
-            { icon: "🚫", label: "No Preservatives" },
-            { icon: "🍳", label: "Made to Order" },
-          ].map((item, i) => (
-            <div
-              key={i}
-              className="a-card bg-[#fff1e3] rounded-2xl p-4 text-center border border-[#f0d9b5]"
-            >
-              <p className="text-2xl mb-2">{item.icon}</p>
-              <p className="font-body font-black text-xs text-[#3d1a00]">
-                {item.label}
-              </p>
-            </div>
-          ))}
+            { icon: Leaf, label: "Fresh Daily" },
+            { icon: Zap, label: "Fast Service" },
+            { icon: Wallet, label: "Affordable" },
+            { icon: ShieldCheck, label: "FSSAI Certified" },
+            { icon: Users, label: "Family Friendly" },
+            { icon: Smartphone, label: "Online Ordering" },
+            { icon: Ban, label: "No Preservatives" },
+            { icon: Flame, label: "Made to Order" },
+          ].map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={i}
+                className="a-card bg-[#fff1e3] rounded-2xl p-4 text-center border border-[#f0d9b5]"
+              >
+                <div className="w-10 h-10 mx-auto mb-2 bg-white rounded-xl flex items-center justify-center">
+                  <Icon className="w-5 h-5 text-[#c17f24]" strokeWidth={2} />
+                </div>
+                <p className="font-body font-black text-xs text-[#3d1a00]">
+                  {item.label}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </section>
 

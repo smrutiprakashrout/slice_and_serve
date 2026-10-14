@@ -3,31 +3,44 @@
 import Image from "next/image";
 import { MapPin, ChevronDown, ShoppingCart, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useCartStore } from "@/lib/cart-store";
 import { useScrollDirection } from "@/lib/useScrollDirection";
 
 export default function TopBar() {
   const router = useRouter();
   const visible = useScrollDirection(); // defaults to [data-scroll-container]
+  const { data: session } = useSession();
 
   // Subscribe to items array — re-renders instantly on every cart change
   const items = useCartStore((s) => s.items);
   const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
 
+  const googlePhoto = session?.user?.image ?? null;
+
   return (
     <div
       style={{ willChange: "transform", backfaceVisibility: "hidden" }}
-      className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 transform-gpu transition-transform duration-300 ease-in-out ${
-        visible ? "translate-y-0" : "-translate-y-full"
-      }`}
+      className={`fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-md z-50 transform-gpu transition-transform duration-300 ease-in-out ${visible ? "translate-y-0" : "-translate-y-full"
+        }`}
     >
       {/* Logo / User / Cart row */}
       <div className="bg-[#fff1e3] flex justify-between items-center px-6 py-2">
         <button
           onClick={() => router.push("/profile")}
-          className="w-10 h-10 bg-yellow-900 rounded-xl flex items-center justify-center shadow-sm active:scale-95 transition-transform"
+          className="w-10 h-10 bg-yellow-900 rounded-full flex items-center justify-center shadow-sm active:scale-95 transition-transform overflow-hidden"
         >
-          <User className="w-5 h-5 text-white" />
+          {googlePhoto ? (
+            <Image
+              src={googlePhoto}
+              alt="Profile"
+              width={40}
+              height={40}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User className="w-5 h-5 text-white" />
+          )}
         </button>
 
         <Image src="/images/logo.png" alt="logo" width={90} height={90} />

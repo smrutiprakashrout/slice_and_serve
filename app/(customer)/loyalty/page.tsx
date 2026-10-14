@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import useSWR from "swr";
+import { useSession, signIn } from "next-auth/react";
+import { QRCodeSVG } from "qrcode.react";
+import { fetcher } from "@/lib/fetcher";
+import { useIsTabVisible } from "@/lib/useIsTabVisible";
 import {
   Gift,
   CheckCircle2,
@@ -11,38 +16,34 @@ import {
   ChevronRight,
   RefreshCw,
   PartyPopper,
+  LogIn,
 } from "lucide-react";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-interface LoyaltyData {
+// ─── Types & Static Metadata ──────────────────────────────────────────────────
+interface LoyaltyMeResponse {
   stamps: number;
   totalRequired: number;
-  reward: {
-    title: string;
-    subtitle: string;
-    image: string;
-  };
-  brand: {
-    name: string;
-    tagline: string;
-    logo: string;
-  };
+  rewardReady: boolean;
+  stampToken: string;
+  redeemToken?: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const LOYALTY: LoyaltyData = {
-  stamps: 2,
-  totalRequired: 6,
-  reward: {
-    title: "Free sandwitch of your choice",
-    subtitle: "Any sandwich from the menu",
-    image: "/images/65_sandwitch.jpg",
-  },
-  brand: {
-    name: "Slice and Serve",
-    tagline: "LOYALTY MEMBER CARD",
-    logo: "/images/logo.png",
-  },
+interface LoyaltyReward {
+  title: string;
+  subtitle: string;
+  image: string;
+}
+
+const REWARD: LoyaltyReward = {
+  title: "Free sandwitch of your choice",
+  subtitle: "Any sandwich from the menu",
+  image: "/images/65_sandwitch.jpg",
+};
+
+const BRAND = {
+  name: "Slice and Serve",
+  tagline: "LOYALTY MEMBER CARD",
+  logo: "/images/logo.png",
 };
 
 // ─── Stamp Component ──────────────────────────────────────────────────────────
@@ -125,58 +126,29 @@ function StampGrid({
   );
 }
 
-// ─── QR Code Grid (shared) ────────────────────────────────────────────────────
-const QR_GRID = [
-  [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-  [1, 0, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 0, 1],
-  [1, 0, 1, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1],
-  [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 0, 1],
-  [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
-  [1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1],
-  [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-  [1, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1],
-  [0, 1, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0],
-  [1, 0, 1, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0, 1],
-  [0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 0],
-  [1, 0, 1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 0, 1, 1, 1],
-  [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-  [1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 1, 1, 0],
-  [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 1],
-  [1, 0, 1, 1, 1, 0, 1, 1, 0, 1, 0, 0, 1, 0, 1, 1, 1, 0, 1, 0, 1],
-  [1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0],
-  [1, 0, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 1, 1, 1],
-  [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 1, 0, 1, 0, 1, 1, 0, 0, 1],
-  [1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1],
-];
+
 
 // ─── Small QR (stamp section) ─────────────────────────────────────────────────
-function QRCodeDisplay({ value }: { value: string }) {
+function QRCodeDisplay({ stampToken }: { stampToken: string }) {
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="bg-white p-3 rounded-2xl shadow-inner border border-[#f0d9b5]">
-        <div
-          className="grid gap-[1.5px]"
-          style={{ gridTemplateColumns: `repeat(21, 1fr)`, width: 147 }}
-        >
-          {QR_GRID.flat().map((cell, i) => (
-            <div
-              key={i}
-              className="aspect-square rounded-[1px]"
-              style={{ backgroundColor: cell ? "#8B1A1A" : "transparent" }}
-            />
-          ))}
-        </div>
+        <QRCodeSVG
+          value={stampToken}
+          size={147}
+          fgColor="#8B1A1A"
+          bgColor="transparent"
+        />
       </div>
       <p className="text-[10px] text-[#a07850] font-medium tracking-wider uppercase">
-        Show this to staff · {value}
+        Show this to staff · {stampToken}
       </p>
     </div>
   );
 }
 
 // ─── Large QR (redeem modal) ──────────────────────────────────────────────────
-function RedeemQRCode({ value }: { value: string }) {
+function RedeemQRCode({ redeemToken }: { redeemToken: string }) {
   return (
     <div className="flex flex-col items-center gap-3">
       {/* Outer glow ring */}
@@ -184,20 +156,15 @@ function RedeemQRCode({ value }: { value: string }) {
         <div className="bg-white p-4 rounded-2xl shadow-xl border-2 border-yellow-900/10">
           {/* Logo watermark centred over QR */}
           <div className="relative">
-            <div
-              className="grid gap-[2px]"
-              style={{ gridTemplateColumns: `repeat(21, 1fr)`, width: 196 }}
-            >
-              {QR_GRID.flat().map((cell, i) => (
-                <div
-                  key={i}
-                  className="aspect-square rounded-[1.5px]"
-                  style={{ backgroundColor: cell ? "#5c3208" : "transparent" }}
-                />
-              ))}
-            </div>
+            <QRCodeSVG
+              value={redeemToken}
+              size={196}
+              fgColor="#5c3208"
+              bgColor="transparent"
+              level="H"
+            />
             {/* Centre logo badge */}
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-10 h-10 bg-white rounded-xl shadow-md flex items-center justify-center border-2 border-yellow-900/20">
                 <Image
                   src="/logo.svg"
@@ -215,7 +182,7 @@ function RedeemQRCode({ value }: { value: string }) {
         <p className="text-xs font-black text-yellow-900 tracking-widest uppercase">
           Scan to Redeem
         </p>
-        <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{value}</p>
+        <p className="text-[10px] text-gray-400 mt-0.5 font-mono">{redeemToken}</p>
       </div>
     </div>
   );
@@ -226,32 +193,32 @@ function RedeemedScreen({
   reward,
   onClose,
 }: {
-  reward: LoyaltyData["reward"];
+  reward: LoyaltyReward;
   onClose: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center px-6">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
       <div className="relative bg-white rounded-3xl p-8 w-full max-w-sm text-center shadow-2xl animate-pop-in">
-        {/* Confetti icon */}
-        <div className="w-20 h-20 bg-yellow-900 rounded-full flex items-center justify-center mx-auto mb-5 shadow-xl shadow-yellow-900/30">
-          <PartyPopper className="w-10 h-10 text-white" />
+        <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <PartyPopper className="w-8 h-8 text-yellow-900" />
         </div>
-        <h2 className="text-2xl font-black text-gray-900 mb-2">
+        <span className="inline-block text-[10px] font-black tracking-widest uppercase bg-yellow-100 text-yellow-900 px-3 py-1 rounded-full mb-2">
           Reward Claimed!
-        </h2>
-        <p className="text-sm text-gray-500 mb-1">{reward.title}</p>
-        <p className="text-xs text-gray-400 mb-7">{reward.subtitle}</p>
-        <div className="h-px bg-[#f0d9b5] mb-6" />
-        <p className="text-xs text-gray-400 mb-6">
-          Your loyalty card has been reset. Keep collecting stamps for your next
-          reward! 🎯
+        </span>
+        <h3 className="text-xl font-black text-gray-900 mt-1">Enjoy your</h3>
+        <p className="text-base font-black text-yellow-900 mt-0.5">
+          {reward.title}
+        </p>
+        <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+          Your card has been reset to 0 stamps. Keep collecting to earn your
+          next treat!
         </p>
         <button
           onClick={onClose}
-          className="w-full h-13 py-4 bg-yellow-900 text-white font-black text-sm rounded-xl shadow-lg shadow-yellow-900/30 active:scale-95 transition-transform"
+          className="mt-6 w-full py-3.5 bg-yellow-900 text-white font-black text-sm rounded-xl shadow-lg shadow-yellow-900/30 active:scale-95 transition-transform"
         >
-          Start Fresh 🚀
+          Start Fresh Card
         </button>
       </div>
     </div>
@@ -261,10 +228,12 @@ function RedeemedScreen({
 // ─── Redeem Modal ──────────────────────────────────────────────────────────────
 function RedeemModal({
   reward,
+  redeemToken,
   onClose,
   onRedeemed,
 }: {
-  reward: LoyaltyData["reward"];
+  reward: LoyaltyReward;
+  redeemToken: string;
   onClose: () => void;
   onRedeemed: () => void; // called when admin "scans" → resets card
 }) {
@@ -321,7 +290,7 @@ function RedeemModal({
 
           {/* ── Large scannable QR ── */}
           <div className="py-6 flex justify-center bg-white">
-            <RedeemQRCode value="SNS-REDEEM-00421" />
+            <RedeemQRCode redeemToken={redeemToken} />
           </div>
 
           {/* Instruction strip */}
@@ -335,7 +304,7 @@ function RedeemModal({
         </div>
 
         {/* ── Simulate admin scan button (demo only — remove in production) ── */}
-        <div className="mx-5 mt-4 mb-6">
+        {/*<div className="mx-5 mt-4 mb-6">
           <p className="text-[9px] text-center text-gray-300 font-semibold tracking-widest uppercase mb-2">
             Demo only
           </p>
@@ -346,7 +315,7 @@ function RedeemModal({
             <CheckCircle2 className="w-5 h-5" />
             Simulate Admin Scan &amp; Redeem
           </button>
-        </div>
+        </div>*/}
       </div>
     </div>
   );
@@ -354,33 +323,119 @@ function RedeemModal({
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function LoyaltyPage() {
-  const [stamps, setStamps] = useState(LOYALTY.stamps);
+  const { status: authStatus } = useSession();
+  const isSignedIn = authStatus === "authenticated";
+  const isTabVisible = useIsTabVisible();
+
+  const { data, error, isLoading, mutate } = useSWR<LoyaltyMeResponse>(
+    isSignedIn ? "/api/loyalty/me" : null,
+    fetcher,
+    {
+      refreshInterval: isTabVisible ? 5000 : 0,
+      revalidateOnFocus: true,
+    },
+  );
+
   const [showRedeem, setShowRedeem] = useState(false);
   const [showRedeemed, setShowRedeemed] = useState(false);
   const [newStampIndex, setNewStampIndex] = useState<number | null>(null);
 
-  const total = LOYALTY.totalRequired;
-  const remaining = total - stamps;
-  const complete = stamps >= total;
+  // ── Auth loading state ──
+  if (authStatus === "loading" || (isSignedIn && isLoading)) {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex items-center justify-center pt-16 pb-28">
+        <div className="w-10 h-10 border-4 border-yellow-900 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  const simulateStamp = () => {
-    if (stamps < total) {
-      setNewStampIndex(stamps);
-      setStamps((s) => s + 1);
-      setTimeout(() => setNewStampIndex(null), 600);
-    }
-  };
+  // ── Signed-out state ──
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex flex-col items-center justify-center px-8 text-center pb-28 pt-16">
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-5 shadow-sm border border-[#f0d9b5]">
+          <Gift className="w-10 h-10 text-yellow-900" />
+        </div>
+        <h2 className="font-black text-2xl text-yellow-900 mb-2">
+          You&apos;re not signed in
+        </h2>
+        <p className="text-sm text-yellow-900/60 leading-relaxed mb-8">
+          Sign in with Google to view and track your loyalty stamps.
+        </p>
+        <button
+          onClick={() => signIn("google", { callbackUrl: "/loyalty" })}
+          className="w-full max-w-xs h-14 bg-yellow-900 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform cursor-pointer"
+        >
+          <LogIn className="w-5 h-5" />
+          Continue with Google
+        </button>
+      </div>
+    );
+  }
+
+  // ── Error state ──
+  if (error) {
+    const is401 = (error as Error & { status?: number }).status === 401;
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex flex-col items-center justify-center px-8 text-center pb-28 pt-16">
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-5 shadow-sm border border-[#f0d9b5]">
+          <Gift
+            className={`w-10 h-10 ${is401 ? "text-yellow-900" : "text-red-500"}`}
+          />
+        </div>
+        <h2 className="font-black text-2xl text-yellow-900 mb-2">
+          {is401 ? "Session Expired" : "Unable to load loyalty card"}
+        </h2>
+        <p className="text-sm text-yellow-900/60 leading-relaxed mb-8">
+          {is401
+            ? "Your session has expired. Please sign in again."
+            : error.message || "Failed to load loyalty details. Please try again."}
+        </p>
+        {is401 ? (
+          <button
+            onClick={() => signIn("google", { callbackUrl: "/loyalty" })}
+            className="w-full max-w-xs h-14 bg-yellow-900 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform cursor-pointer"
+          >
+            <LogIn className="w-5 h-5" />
+            Sign In
+          </button>
+        ) : (
+          <button
+            onClick={() => mutate()}
+            className="w-full max-w-xs h-14 bg-yellow-900 text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform cursor-pointer"
+          >
+            <RefreshCw className="w-5 h-5" />
+            Try Again
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  const stamps = data?.stamps ?? 0;
+  const total = data?.totalRequired ?? 10;
+  const rewardReady = data?.rewardReady ?? false;
+  const stampToken = data?.stampToken ?? "";
+  const redeemToken = data?.redeemToken;
+
+  const remaining = Math.max(0, total - stamps);
+  const complete = Boolean(rewardReady || stamps >= total);
 
   // Called when admin scans the redeem QR → reset card, show success
   const handleRedeemed = () => {
     setShowRedeem(false);
     setShowRedeemed(true);
+    mutate();
   };
 
-  // Called on "Start Fresh" → full reset
+  // Called on "Start Fresh" → revalidate card
   const handleReset = () => {
-    setStamps(0);
     setShowRedeemed(false);
+    mutate();
+  };
+
+  const simulateStamp = () => {
+    mutate();
   };
 
   return (
@@ -420,7 +475,7 @@ export default function LoyaltyPage() {
             <div className="flex justify-center items-center">
               {/*<div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center overflow-hidden shadow-inner">
                 <Image
-                  src={LOYALTY.brand.logo}
+                  src={BRAND.logo}
                   alt="logo"
                   width={36}
                   height={36}
@@ -429,10 +484,10 @@ export default function LoyaltyPage() {
               </div>*/}
               <div>
                 {/*<p className="text-black font-black text-base leading-tight">
-                  {LOYALTY.brand.name}
+                  {BRAND.name}
                 </p>*/}
                 <p className="text-black/60 text-[11px] font-extrabold tracking-widest uppercase">
-                  {LOYALTY.brand.tagline}
+                  {BRAND.tagline}
                 </p>
               </div>
             </div>
@@ -442,8 +497,8 @@ export default function LoyaltyPage() {
           <div className="mx-5 -mt-5 bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] border border-[#f0d9b5] flex items-center gap-4 p-4 z-10">
             <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#f5e6d0] shrink-0">
               <Image
-                src={LOYALTY.reward.image}
-                alt={LOYALTY.reward.title}
+                src={REWARD.image}
+                alt={REWARD.title}
                 width={100}
                 height={100}
                 className="w-full h-full object-cover"
@@ -454,7 +509,7 @@ export default function LoyaltyPage() {
                 {complete ? "🎉 Ready to claim!" : "Your next treat"}
               </p>
               <h3 className="font-black text-gray-900 text-sm leading-tight truncate">
-                {LOYALTY.reward.title}
+                {REWARD.title}
               </h3>
               <p className="text-[11px] text-gray-500 mt-0.5">
                 {complete
@@ -496,14 +551,14 @@ export default function LoyaltyPage() {
             </p>
 
             <button
-              onClick={() => complete && setShowRedeem(true)}
-              disabled={!complete}
+              onClick={() => rewardReady && setShowRedeem(true)}
+              disabled={!rewardReady}
               className={`
                 mt-4 w-full h-14 rounded-xl flex items-center justify-center gap-2
                 font-black text-sm tracking-wide transition-all duration-300
                 ${
-                  complete
-                    ? "bg-yellow-500 text-white shadow-lg shadow-yellow-900/30 animate-pulse-glow active:scale-95"
+                  rewardReady
+                    ? "bg-yellow-500 text-white shadow-lg shadow-yellow-900/30 animate-pulse-glow active:scale-95 cursor-pointer"
                     : "bg-[#f5e6d0] text-[#c9a87c] cursor-not-allowed"
                 }
               `}
@@ -527,7 +582,7 @@ export default function LoyaltyPage() {
               <QrCode className="w-5 h-5 text-yellow-900" />
             </div>
 
-            <QRCodeDisplay value="SNS-CUST-00421" />
+            <QRCodeDisplay stampToken={stampToken} />
 
             <div className="mt-4 bg-[#fff1e3] rounded-xl p-3 flex gap-3 items-start">
               <div className="w-6 h-6 bg-yellow-900 rounded-full flex items-center justify-center shrink-0 mt-0.5">
@@ -547,7 +602,7 @@ export default function LoyaltyPage() {
           </div>
 
           {/* ── Demo Controls ─────────────────────────────────────────── */}
-          <div className="mx-5 mt-4 border-2 border-dashed border-[#f0d9b5] rounded-2xl p-4 flex items-center justify-between">
+          {/*<div className="mx-5 mt-4 border-2 border-dashed border-[#f0d9b5] rounded-2xl p-4 flex items-center justify-between">
             <div>
               <p className="text-[10px] font-black text-[#c9a87c] tracking-widest uppercase">
                 Demo Controls
@@ -558,8 +613,9 @@ export default function LoyaltyPage() {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={handleReset}
-                className="w-10 h-10 rounded-xl bg-[#f5e6d0] flex items-center justify-center active:scale-95 transition-transform"
+                onClick={() => mutate()}
+                title="Refresh loyalty card"
+                className="w-10 h-10 rounded-xl bg-[#f5e6d0] flex items-center justify-center active:scale-95 transition-transform cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4 text-yellow-900" />
               </button>
@@ -575,14 +631,15 @@ export default function LoyaltyPage() {
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
+          </div>*/}
         </div>
       </main>
 
       {/* ── Redeem Modal ─────────────────────────────────────────────── */}
-      {showRedeem && (
+      {showRedeem && rewardReady && Boolean(redeemToken) && (
         <RedeemModal
-          reward={LOYALTY.reward}
+          reward={REWARD}
+          redeemToken={redeemToken!}
           onClose={() => setShowRedeem(false)}
           onRedeemed={handleRedeemed}
         />
@@ -590,7 +647,7 @@ export default function LoyaltyPage() {
 
       {/* ── Redeemed Success Overlay ─────────────────────────────────── */}
       {showRedeemed && (
-        <RedeemedScreen reward={LOYALTY.reward} onClose={handleReset} />
+        <RedeemedScreen reward={REWARD} onClose={handleReset} />
       )}
     </>
   );

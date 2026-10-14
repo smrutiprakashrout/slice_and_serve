@@ -4,23 +4,53 @@ import { useState, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Image from "next/image";
+import { useSession, signIn } from "next-auth/react";
+import useSWR from "swr";
+import { fetcher } from "@/lib/fetcher";
+import { useIsTabVisible } from "@/lib/useIsTabVisible";
+import { MOCK_MENU } from "@/lib/menu-data";
 import {
   Clock,
   ChefHat,
   CheckCircle2,
-  Utensils,
+  XCircle,
   Package,
   History,
   ReceiptText,
   Star,
+  LogIn,
 } from "lucide-react";
 
 gsap.registerPlugin(useGSAP);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = "pending" | "preparing" | "ready" | "served";
+type OrderStatus = "pending" | "accepted" | "completed" | "rejected";
 type ItemType = "veg" | "nonveg";
+
+interface ApiOrderItem {
+  _id?: string;
+  menuItemId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface ApiOrder {
+  _id: string;
+  id?: string;
+  customerId: string;
+  customerName: string;
+  fulfillment: "dine-in" | "pickup";
+  tableNumber?: string;
+  items: ApiOrderItem[];
+  itemTotal: number;
+  total: number;
+  status: OrderStatus;
+  placedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 interface OrderItem {
   id: string;
@@ -32,67 +62,48 @@ interface OrderItem {
   status: OrderStatus;
   type: ItemType;
   placedAt: string;
+  fulfillment?: "dine-in" | "pickup";
+  tableNumber?: string;
+  orderMongoId?: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Menu lookup for item images and diet type ────────────────────────────────
 
-const INITIAL_ORDERS: OrderItem[] = [
-  {
-    id: "item-1",
-    orderId: "SNS-0041",
-    name: "Chicken 65 Sandwich",
-    image: "/images/chilli_chicken_sand.jpg",
-    price: 120,
-    quantity: 2,
-    status: "ready",
-    type: "nonveg",
-    placedAt: "10:32 AM",
-  },
-  {
-    id: "item-2",
-    orderId: "SNS-0041",
-    name: "Blue Angel Drink",
-    image: "/images/drink/blue_angel.jpg",
-    price: 60,
-    quantity: 1,
-    status: "ready",
-    type: "veg",
-    placedAt: "10:32 AM",
-  },
-  {
-    id: "item-3",
-    orderId: "SNS-0042",
-    name: "Paneer Sandwich",
-    image: "/images/Panner_sandwitch.jpg",
-    price: 90,
-    quantity: 1,
-    status: "preparing",
-    type: "veg",
-    placedAt: "10:41 AM",
-  },
-  {
-    id: "item-4",
-    orderId: "SNS-0043",
-    name: "Chilli Mushroom Sandwich",
-    image: "/images/Chilli_mushroom_sand.jpg",
-    price: 95,
-    quantity: 2,
-    status: "pending",
-    type: "veg",
-    placedAt: "10:48 AM",
-  },
-  {
-    id: "item-5",
-    orderId: "SNS-0043",
-    name: "Lemon Iced Tea",
-    image: "/images/drink/lemon_ice_tea.jpg",
-    price: 50,
-    quantity: 2,
-    status: "pending",
-    type: "veg",
-    placedAt: "10:48 AM",
-  },
-];
+const MENU_LOOKUP = new Map<string, { image: string; type: ItemType }>();
+for (const m of MOCK_MENU) {
+  MENU_LOOKUP.set(m.name.toLowerCase().trim(), {
+    image: m.image,
+    type: m.type === "non-veg" ? "nonveg" : "veg",
+  });
+}
+
+function formatOrderTime(dateInput: string | Date | undefined): string {
+  if (!dateInput) return "";
+  try {
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return String(dateInput);
+    const now = new Date();
+    const isToday =
+      d.getDate() === now.getDate() &&
+      d.getMonth() === now.getMonth() &&
+      d.getFullYear() === now.getFullYear();
+
+    const timeStr = d.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+
+    if (isToday) return timeStr;
+    const dateStr = d.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+    });
+    return `${dateStr}, ${timeStr}`;
+  } catch {
+    return String(dateInput);
+  }
+}
 
 // ─── Status config ────────────────────────────────────────────────────────────
 
@@ -115,37 +126,36 @@ const STATUS_CONFIG: Record<
     bg: "bg-amber-50 border-amber-200",
     pulse: false,
   },
-  preparing: {
-    label: "Preparing",
+  accepted: {
+    label: "Accepted",
     icon: ChefHat,
     step: 2,
     color: "text-blue-600",
     bg: "bg-blue-50 border-blue-200",
-    pulse: false,
+    pulse: true,
   },
-  ready: {
-    label: "Ready!",
+  completed: {
+    label: "Completed",
     icon: CheckCircle2,
     step: 3,
     color: "text-green-600",
     bg: "bg-green-50 border-green-200",
-    pulse: true,
+    pulse: false,
   },
-  served: {
-    label: "Served",
-    icon: Utensils,
-    step: 4,
-    color: "text-gray-400",
-    bg: "bg-gray-50 border-gray-200",
+  rejected: {
+    label: "Rejected",
+    icon: XCircle,
+    step: 0,
+    color: "text-red-600",
+    bg: "bg-red-50 border-red-200",
     pulse: false,
   },
 };
 
-const STEPS: { key: OrderStatus; label: string }[] = [
+const STEPS: { key: "pending" | "accepted" | "completed"; label: string }[] = [
   { key: "pending", label: "Placed" },
-  { key: "preparing", label: "Cooking" },
-  { key: "ready", label: "Ready" },
-  { key: "served", label: "Served" },
+  { key: "accepted", label: "Accepted" },
+  { key: "completed", label: "Completed" },
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -165,6 +175,15 @@ function VegBadge({ type }: { type: ItemType }) {
 }
 
 function StatusTrack({ status }: { status: OrderStatus }) {
+  if (status === "rejected") {
+    return (
+      <div className="flex items-center gap-1.5 mt-3 px-2.5 py-1.5 rounded-lg bg-red-50 border border-red-200 w-fit">
+        <XCircle className="w-3.5 h-3.5 text-red-600" />
+        <span className="text-[10px] font-bold text-red-600">Order Rejected</span>
+      </div>
+    );
+  }
+
   const currentStep = STATUS_CONFIG[status].step;
 
   return (
@@ -185,21 +204,19 @@ function StatusTrack({ status }: { status: OrderStatus }) {
                 className={`w-5 h-5 rounded-full flex items-center justify-center border-2 transition-all duration-500
                   ${
                     done
-                      ? active && status === "ready"
+                      ? active && status === "completed"
                         ? "bg-green-700 border-green-700 shadow-md"
                         : "bg-[#c17f24] border-[#c17f24]"
                       : "bg-white border-gray-200"
                   }`}
               >
                 {done && (
-                  <div
-                    className={`w-2 h-2 rounded-full ${active && status === "ready" ? "bg-white" : "bg-white"}`}
-                  />
+                  <div className="w-2 h-2 rounded-full bg-white" />
                 )}
               </div>
               <p
                 className={`text-[8px] font-bold leading-none whitespace-nowrap
-                ${done ? (active && status === "ready" ? "text-green-600" : "text-[#c17f24]") : "text-gray-300"}`}
+                ${done ? (active && status === "completed" ? "text-green-600" : "text-[#c17f24]") : "text-gray-300"}`}
               >
                 {step.label}
               </p>
@@ -228,10 +245,10 @@ function StatusTrack({ status }: { status: OrderStatus }) {
 
 function OrderCard({
   item,
-  onMarkServed,
+  onMarkCompleted,
 }: {
   item: OrderItem;
-  onMarkServed: (id: string) => void;
+  onMarkCompleted: (id: string) => void;
 }) {
   const cfg = STATUS_CONFIG[item.status];
   const StatusIcon = cfg.icon;
@@ -249,6 +266,15 @@ function OrderCard({
           <p className="text-[10px] font-black text-[#3d1a00] tracking-widest uppercase">
             Order #{item.orderId}
           </p>
+          {item.fulfillment && (
+            <span className="text-[9px] font-bold text-[#c17f24] bg-[#f5e6d0] px-1.5 py-0.5 rounded capitalize">
+              {item.fulfillment === "dine-in"
+                ? item.tableNumber?.trim()
+                  ? `Table ${item.tableNumber.trim()}`
+                  : "Dine-in"
+                : "Pickup"}
+            </span>
+          )}
         </div>
         <p className="text-[10px] text-[#3d1a00]/40 font-medium">
           {item.placedAt}
@@ -303,14 +329,14 @@ function OrderCard({
         {/* Progress track */}
         <StatusTrack status={item.status} />
 
-        {/* Ready CTA */}
-        {item.status === "ready" && (
+        {/* Accepted CTA */}
+        {item.status === "accepted" && (
           <button
-            onClick={() => onMarkServed(item.id)}
-            className="mt-4 w-full h-11 bg-yellow-500 text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+            onClick={() => onMarkCompleted(item.id)}
+            className="mt-4 w-full h-11 bg-[#c17f24] hover:bg-[#a66a1a] text-white font-black text-xs rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
           >
-            <Utensils className="w-4 h-4" />
-            Mark as Served &amp; Complete
+            <CheckCircle2 className="w-4 h-4" />
+            Mark as Completed
           </button>
         )}
       </div>
@@ -327,6 +353,15 @@ function HistoryCard({ item }: { item: OrderItem }) {
           <p className="text-[10px] font-black text-gray-500 tracking-widest uppercase">
             Order #{item.orderId}
           </p>
+          {item.fulfillment && (
+            <span className="text-[9px] font-bold text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded capitalize">
+              {item.fulfillment === "dine-in"
+                ? item.tableNumber?.trim()
+                  ? `Table ${item.tableNumber.trim()}`
+                  : "Dine-in"
+                : "Pickup"}
+            </span>
+          )}
         </div>
         <p className="text-[10px] text-gray-400 font-medium">{item.placedAt}</p>
       </div>
@@ -359,19 +394,28 @@ function HistoryCard({ item }: { item: OrderItem }) {
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          <div className="flex items-center gap-1 bg-gray-100 rounded-full px-2.5 py-1">
-            <CheckCircle2 className="w-3 h-3 text-gray-400" strokeWidth={2.5} />
-            <p className="text-[10px] font-black text-gray-400">Served</p>
-          </div>
-          {/* Star rating placeholder */}
-          <div className="flex gap-0.5">
-            {[1, 2, 3, 4, 5].map((s) => (
-              <Star
-                key={s}
-                className="w-2.5 h-2.5 fill-[#f0d9b5] text-[#f0d9b5]"
-              />
-            ))}
-          </div>
+          {item.status === "rejected" ? (
+            <div className="flex items-center gap-1 bg-red-50 border border-red-200 rounded-full px-2.5 py-1">
+              <XCircle className="w-3 h-3 text-red-600" strokeWidth={2.5} />
+              <p className="text-[10px] font-black text-red-600">Rejected</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-full px-2.5 py-1">
+                <CheckCircle2 className="w-3 h-3 text-gray-400" strokeWidth={2.5} />
+                <p className="text-[10px] font-black text-gray-400">Completed</p>
+              </div>
+              {/* Star rating placeholder */}
+              <div className="flex gap-0.5">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star
+                    key={s}
+                    className="w-2.5 h-2.5 fill-[#f0d9b5] text-[#f0d9b5]"
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -410,24 +454,63 @@ function EmptyHistory() {
   );
 }
 
-// ─── Group orders by order ID ─────────────────────────────────────────────────
-
-const groupBy = (items: OrderItem[]) => {
-  const groups: Record<string, OrderItem[]> = {};
-  items.forEach((item) => {
-    if (!groups[item.orderId]) groups[item.orderId] = [];
-    groups[item.orderId].push(item);
-  });
-  return groups;
-};
-
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState<"active" | "history">("active");
-  const [orders, setOrders] = useState<OrderItem[]>(INITIAL_ORDERS);
-  const [history, setHistory] = useState<OrderItem[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const { data: session, status: authStatus } = useSession();
+  const isSignedIn = authStatus === "authenticated";
+  const isTabVisible = useIsTabVisible();
+
+  const {
+    data: apiOrders,
+    error,
+    isLoading,
+    mutate,
+  } = useSWR<ApiOrder[]>(
+    isSignedIn ? "/api/orders/me" : null,
+    fetcher,
+    {
+      refreshInterval: isTabVisible ? 5000 : 0,
+      revalidateOnFocus: true,
+    },
+  );
+
+  // Transform SWR response mapping Mongo _id -> id to match OrderItem expectations
+  const allItems: OrderItem[] = (apiOrders ?? []).flatMap((order) => {
+    const placedAtFormatted = formatOrderTime(order.placedAt);
+    const orderId = order._id.slice(-6).toUpperCase();
+
+    return order.items.map((it, idx) => {
+      const lookup = MENU_LOOKUP.get(it.name.toLowerCase().trim());
+      const id =
+        order.items.length > 1 ? `${order._id}-${it._id || idx}` : order._id;
+
+      return {
+        id,
+        orderId,
+        name: it.name,
+        image: lookup?.image || "/images/burger.jpg",
+        price: it.price,
+        quantity: it.quantity,
+        status: order.status,
+        type: lookup?.type || "veg",
+        placedAt: placedAtFormatted,
+        fulfillment: order.fulfillment,
+        tableNumber: order.tableNumber,
+        orderMongoId: order._id,
+      };
+    });
+  });
+
+  const orders = allItems.filter(
+    (o) => o.status === "pending" || o.status === "accepted",
+  );
+  const history = allItems.filter(
+    (o) => o.status === "completed" || o.status === "rejected",
+  );
 
   // Entrance animation
   useGSAP(
@@ -439,17 +522,8 @@ export default function OrdersPage() {
         stagger: 0.1,
         ease: "power2.out",
       });
-
-      // Pulse animation for "ready" cards
-      gsap.to(".ready-pulse", {
-        boxShadow: "0 0 0 6px rgba(34,197,94,0.15)",
-        duration: 1.2,
-        repeat: -1,
-        yoyo: true,
-        ease: "sine.inOut",
-      });
     },
-    { scope: containerRef, dependencies: [activeTab] },
+    { scope: containerRef, dependencies: [activeTab, orders.length] },
   );
 
   // History card entrance
@@ -468,9 +542,24 @@ export default function OrdersPage() {
     { scope: containerRef, dependencies: [activeTab, history.length] },
   );
 
-  const handleMarkServed = (id: string) => {
+  const handleMarkCompleted = (id: string) => {
     const target = orders.find((o) => o.id === id);
     if (!target) return;
+
+    const applyCompletion = () => {
+      mutate(
+        (prev) => {
+          if (!prev) return prev;
+          return prev.map((ord) => {
+            if (ord._id === target.orderMongoId || ord._id === target.id) {
+              return { ...ord, status: "completed" as const };
+            }
+            return ord;
+          });
+        },
+        { revalidate: false },
+      );
+    };
 
     // Animate card out
     const cardEl = document.getElementById(`order-card-${id}`);
@@ -484,46 +573,90 @@ export default function OrdersPage() {
         marginBottom: 0,
         duration: 0.4,
         ease: "power2.in",
-        onComplete: () => {
-          const servedItem = { ...target, status: "served" as OrderStatus };
-          setOrders((prev) => prev.filter((o) => o.id !== id));
-          setHistory((prev) => [servedItem, ...prev]);
-        },
+        onComplete: applyCompletion,
       });
     } else {
-      const servedItem = { ...target, status: "served" as OrderStatus };
-      setOrders((prev) => prev.filter((o) => o.id !== id));
-      setHistory((prev) => [servedItem, ...prev]);
+      applyCompletion();
     }
   };
 
   // Separate active orders by status section
+  const accepted = orders.filter((o) => o.status === "accepted");
   const pending = orders.filter((o) => o.status === "pending");
-  const preparing = orders.filter((o) => o.status === "preparing");
-  const ready = orders.filter((o) => o.status === "ready");
+
+  // ── Auth loading state ──
+  if (authStatus === "loading") {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#c17f24] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // ── Signed-out state ──
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex flex-col items-center justify-center px-8 text-center pb-28">
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-5 shadow-sm border border-[#f0d9b5]">
+          <Package className="w-10 h-10 text-[#c17f24]" />
+        </div>
+        <h2 className="font-black text-2xl text-[#3d1a00] mb-2">
+          You&apos;re not signed in
+        </h2>
+        <p className="text-sm text-[#3d1a00]/50 leading-relaxed mb-8">
+          Sign in with Google to view and track your orders.
+        </p>
+        <button
+          onClick={() => signIn("google", { callbackUrl: "/orders" })}
+          className="w-full max-w-xs h-14 bg-[#3d1a00] text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform"
+        >
+          <LogIn className="w-5 h-5" />
+          Continue with Google
+        </button>
+      </div>
+    );
+  }
+
+  // ── Session expired (401 from SWR) ──
+  if (error && (error as Error & { status?: number }).status === 401) {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex flex-col items-center justify-center px-8 text-center pb-28">
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-5 shadow-sm border border-[#f0d9b5]">
+          <Package className="w-10 h-10 text-[#c17f24]" />
+        </div>
+        <h2 className="font-black text-2xl text-[#3d1a00] mb-2">
+          Session Expired
+        </h2>
+        <p className="text-sm text-[#3d1a00]/50 leading-relaxed mb-8">
+          Your session has expired. Please sign in again to view your orders.
+        </p>
+        <button
+          onClick={() => signIn("google", { callbackUrl: "/orders" })}
+          className="w-full max-w-xs h-14 bg-[#3d1a00] text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform"
+        >
+          <LogIn className="w-5 h-5" />
+          Sign In
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div
       ref={containerRef}
       className="bg-[#fff1e3] min-h-dvh font-sans text-[#3d1a00]"
     >
-      <style>{`
-        @keyframes ready-ring {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.25); }
-          50%       { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
-        }
-        .ready-ring { animation: ready-ring 2s ease-in-out infinite; }
-      `}</style>
-
       {/* ── Page Header ──────────────────────────────────────────── */}
       <div className="px-5 pb-3 pt-28">
         <h1 className="text-2xl font-black text-[#3d1a00] leading-tight">
           My Orders
         </h1>
         <p className="text-xs text-[#3d1a00]/50 mt-0.5">
-          {orders.length > 0
-            ? `${orders.length} active item${orders.length !== 1 ? "s" : ""} · tap "Mark as Served" when collected`
-            : "All clear — no active orders"}
+          {isLoading
+            ? "Loading your orders..."
+            : orders.length > 0
+              ? `${orders.length} active item${orders.length !== 1 ? "s" : ""} · tap "Mark as Completed" when collected`
+              : "All clear — no active orders"}
         </p>
       </div>
 
@@ -545,7 +678,7 @@ export default function OrdersPage() {
                 <>
                   <Package className="w-3.5 h-3.5" />
                   Active
-                  {orders.length > 0 && (
+                  {!isLoading && orders.length > 0 && (
                     <span
                       className={`w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center
                       ${activeTab === "active" ? "bg-[#c17f24] text-white" : "bg-[#f0d9b5] text-[#3d1a00]"}`}
@@ -558,7 +691,7 @@ export default function OrdersPage() {
                 <>
                   <History className="w-3.5 h-3.5" />
                   History
-                  {history.length > 0 && (
+                  {!isLoading && history.length > 0 && (
                     <span
                       className={`w-4 h-4 rounded-full text-[9px] font-black flex items-center justify-center
                       ${activeTab === "history" ? "bg-[#c17f24] text-white" : "bg-[#f0d9b5] text-[#3d1a00]"}`}
@@ -573,130 +706,148 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* ── Active Tab ───────────────────────────────────────────── */}
-      {activeTab === "active" && (
-        <div className="px-5 pb-28">
-          {orders.length === 0 ? (
-            <EmptyActive />
-          ) : (
-            <div className="space-y-6">
-              {/* Ready section */}
-              {ready.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 bg-green-800 rounded-full animate-pulse" />
-                    <p className="text-[10px] font-black tracking-widest uppercase text-green-700">
-                      Ready to Collect ({ready.length})
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {ready.map((item) => (
-                      <div
-                        key={item.id}
-                        id={`order-card-${item.id}`}
-                        className="overflow-hidden"
-                      >
-                        <OrderCard
-                          item={item}
-                          onMarkServed={handleMarkServed}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Preparing section */}
-              {preparing.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <ChefHat className="w-3.5 h-3.5 text-blue-500" />
-                    <p className="text-[10px] font-black tracking-widest uppercase text-blue-700">
-                      Being Prepared ({preparing.length})
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {preparing.map((item) => (
-                      <div
-                        key={item.id}
-                        id={`order-card-${item.id}`}
-                        className="overflow-hidden"
-                      >
-                        <OrderCard
-                          item={item}
-                          onMarkServed={handleMarkServed}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Pending section */}
-              {pending.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-3">
-                    <Clock className="w-3.5 h-3.5 text-amber-500" />
-                    <p className="text-[10px] font-black tracking-widest uppercase text-amber-700">
-                      Waiting ({pending.length})
-                    </p>
-                  </div>
-                  <div className="space-y-3">
-                    {pending.map((item) => (
-                      <div
-                        key={item.id}
-                        id={`order-card-${item.id}`}
-                        className="overflow-hidden"
-                      >
-                        <OrderCard
-                          item={item}
-                          onMarkServed={handleMarkServed}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ── History Tab ──────────────────────────────────────────── */}
-      {activeTab === "history" && (
-        <div className="px-5 pb-28">
-          {history.length === 0 ? (
-            <EmptyHistory />
-          ) : (
-            <div className="space-y-3">
-              {/* Summary strip */}
-              <div className="bg-[#3d1a00] rounded-2xl px-5 py-3.5 flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-[#c9a87c] text-[10px] font-black tracking-widest uppercase">
-                    Total Spent
-                  </p>
-                  <p className="text-[#fff1e3] font-black text-xl">
-                    ₹{history.reduce((sum, o) => sum + o.price * o.quantity, 0)}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[#c9a87c] text-[10px] font-black tracking-widest uppercase">
-                    Items
-                  </p>
-                  <p className="text-[#fff1e3] font-black text-xl">
-                    {history.length}
-                  </p>
+      {/* ── Content: Loading, Error, or Tabs ─────────────────────── */}
+      {isLoading ? (
+        <div className="px-5 pb-28 space-y-4">
+          {[1, 2, 3].map((n) => (
+            <div
+              key={`skeleton-${n}`}
+              className="bg-white rounded-2xl overflow-hidden shadow-sm border border-[#f0d9b5] p-4 animate-pulse"
+            >
+              <div className="flex gap-3">
+                <div className="w-20 h-20 bg-gray-200/80 rounded-xl shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-4 bg-gray-200 rounded w-3/4" />
+                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  <div className="h-5 bg-gray-200 rounded-full w-20 mt-2" />
                 </div>
               </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <div className="px-5 pb-28">
+          <div className="bg-white/80 border border-yellow-900/20 rounded-2xl p-6 text-center shadow-sm my-6">
+            <p className="text-sm font-semibold text-[#3d1a00] mb-1">
+              Failed to load orders
+            </p>
+            <p className="text-xs text-[#3d1a00]/60 mb-4">
+              {error?.message || "Please check your connection and try again."}
+            </p>
+            <button
+              type="button"
+              onClick={() => mutate()}
+              className="px-4 py-2 bg-[#3d1a00] text-white text-xs font-bold rounded-lg hover:bg-[#5a2700] transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* ── Active Tab ───────────────────────────────────────────── */}
+          {activeTab === "active" && (
+            <div className="px-5 pb-28">
+              {orders.length === 0 ? (
+                <EmptyActive />
+              ) : (
+                <div className="space-y-6">
+                  {/* Accepted section */}
+                  {accepted.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <ChefHat className="w-3.5 h-3.5 text-blue-500" />
+                        <p className="text-[10px] font-black tracking-widest uppercase text-blue-700">
+                          Accepted &amp; Preparing ({accepted.length})
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        {accepted.map((item) => (
+                          <div
+                            key={item.id}
+                            id={`order-card-${item.id}`}
+                            className="overflow-hidden"
+                          >
+                            <OrderCard
+                              item={item}
+                              onMarkCompleted={handleMarkCompleted}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-              {history.map((item) => (
-                <div key={item.id} className="overflow-hidden">
-                  <HistoryCard item={item} />
+                  {/* Pending section */}
+                  {pending.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        <p className="text-[10px] font-black tracking-widest uppercase text-amber-700">
+                          Waiting ({pending.length})
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        {pending.map((item) => (
+                          <div
+                            key={item.id}
+                            id={`order-card-${item.id}`}
+                            className="overflow-hidden"
+                          >
+                            <OrderCard
+                              item={item}
+                              onMarkCompleted={handleMarkCompleted}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
           )}
-        </div>
+
+          {/* ── History Tab ──────────────────────────────────────────── */}
+          {activeTab === "history" && (
+            <div className="px-5 pb-28">
+              {history.length === 0 ? (
+                <EmptyHistory />
+              ) : (
+                <div className="space-y-3">
+                  {/* Summary strip */}
+                  <div className="bg-[#3d1a00] rounded-2xl px-5 py-3.5 flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-[#c9a87c] text-[10px] font-black tracking-widest uppercase">
+                        Total Spent
+                      </p>
+                      <p className="text-[#fff1e3] font-black text-xl">
+                        ₹
+                        {history
+                          .filter((o) => o.status === "completed")
+                          .reduce((sum, o) => sum + o.price * o.quantity, 0)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[#c9a87c] text-[10px] font-black tracking-widest uppercase">
+                        Items
+                      </p>
+                      <p className="text-[#fff1e3] font-black text-xl">
+                        {history.length}
+                      </p>
+                    </div>
+                  </div>
+
+                  {history.map((item) => (
+                    <div key={item.id} className="overflow-hidden">
+                      <HistoryCard item={item} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
