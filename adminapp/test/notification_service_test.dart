@@ -199,7 +199,6 @@ void main() {
                   data: {
                     'success': true,
                     'message': 'FCM token registered successfully.',
-                    'token': 'mock-device-token-123',
                   },
                 ),
               );

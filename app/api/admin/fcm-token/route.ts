@@ -51,7 +51,6 @@ export async function POST(request: Request) {
       {
         success: true,
         message: "FCM token registered successfully.",
-        token: trimmedToken,
       },
       { status: 200 },
     );

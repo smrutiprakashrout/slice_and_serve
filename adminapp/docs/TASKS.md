@@ -355,7 +355,7 @@ FCM on new orders) — those are already-tracked backend tasks, not repeated her
 - [x] **Launch-2 · M ·** Full visual & interaction polish pass — every screen against
       the polished-flutter-ui checklist (skill §7), light + dark, large text,
       reduced motion.
-- [ ] **Launch-3 · M ·** Generate the release keystore, `flutter build apk --release`,
+- [x] **Launch-3 · M ·** Generate the release keystore, `flutter build apk --release`,
       sideload onto the owner's device.
 - [ ] **Launch-4 · M ·** Run the full acceptance check from `PRD.md` §5, end to end,
       on the real device, alongside the customer web app. Write a one-page handover

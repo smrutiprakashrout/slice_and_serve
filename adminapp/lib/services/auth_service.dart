@@ -60,12 +60,9 @@ class AuthService {
           errorCode: 'INVALID_CREDENTIALS',
         );
       }
-      return Result.failure(
-        'Something went wrong, please try again.',
-        statusCode: e.response?.statusCode,
-      );
-    } catch (_) {
-      return const Result.failure('Something went wrong, please try again.');
+      return ApiClient.failureFromDioException(e);
+    } catch (e) {
+      return Result.failure('Unexpected error: $e');
     }
   }
 

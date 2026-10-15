@@ -7,6 +7,10 @@ import MenuItem from "@/model/MenuItem";
 import Order, { IOrderItem } from "@/model/Order";
 import { requireAdmin } from "@/lib/admin-auth";
 import { ApiError, handleApiError } from "@/lib/api-error";
+import { sendNewOrderNotification } from "@/lib/order-notifications";
+
+// Leave room for the Firebase Admin SDK's bounded 15-second FCM request timeout.
+export const maxDuration = 30;
 
 // POST /api/orders (customer session)
 // Places a new order, validating items against DB prices and availability.
@@ -139,6 +143,36 @@ export async function POST(request: Request) {
       status: "pending",
       placedAt: new Date(),
     });
+
+    // Notification delivery is best-effort: the order is already persisted, so an
+    // FCM failure must not turn this successful order response into an API error.
+    try {
+      const notification = await sendNewOrderNotification(order._id.toString());
+      const diagnostic = {
+        orderId: order._id.toString(),
+        status: notification.status,
+        recipientCount: notification.recipientCount,
+        ...(notification.status !== "no_recipients"
+          ? {
+              successCount: notification.successCount,
+              failureCount: notification.failureCount,
+              invalidTokensRemoved: notification.invalidTokensRemoved,
+              errorCodes: notification.errorCodes,
+            }
+          : {}),
+      };
+
+      if (notification.status === "failed" || notification.status === "partial") {
+        console.warn("[notifications] New-order FCM send was not fully successful", diagnostic);
+      } else {
+        console.info("[notifications] New-order FCM result", diagnostic);
+      }
+    } catch {
+      // Guard the order response even if unexpected errors escape the sender.
+      console.error("[notifications] Unexpected new-order notification failure", {
+        orderId: order._id.toString(),
+      });
+    }
 
     return NextResponse.json(
       {

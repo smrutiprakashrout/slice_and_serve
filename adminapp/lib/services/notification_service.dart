@@ -92,7 +92,7 @@ class NotificationService {
 
     try {
       final token = await FirebaseMessaging.instance.getToken();
-      debugPrint('[NotificationService] Obtained FCM device token: $token');
+      debugPrint('[NotificationService] FCM device token obtained.');
       return token;
     } catch (e) {
       debugPrint('[NotificationService] Error obtaining FCM device token: $e');
@@ -117,7 +117,7 @@ class NotificationService {
     final trimmed = tokenToRegister.trim();
 
     try {
-      debugPrint('[NotificationService] Registering FCM token with backend: $trimmed');
+      debugPrint('[NotificationService] Registering FCM token with backend.');
       final response = await _apiClient.dio.post<dynamic>(
         '/api/admin/fcm-token',
         data: {
@@ -135,11 +135,17 @@ class NotificationService {
         'Unexpected response from server while registering FCM token.',
       );
     } on DioException catch (e) {
-      debugPrint('[NotificationService] DioException while registering FCM token: $e');
+      debugPrint(
+        '[NotificationService] FCM token registration failed '
+        '(type: ${e.type}, status: ${e.response?.statusCode ?? "none"}).',
+      );
       return ApiClient.failureFromDioException<String>(e);
     } catch (e) {
-      debugPrint('[NotificationService] Unexpected error while registering FCM token: $e');
-      return Result.failure('Unexpected error registering FCM token: $e');
+      debugPrint(
+        '[NotificationService] Unexpected FCM token registration failure '
+        '(type: ${e.runtimeType}).',
+      );
+      return const Result.failure('Unexpected error registering FCM token.');
     }
   }
 
@@ -156,10 +162,13 @@ class NotificationService {
           : FirebaseMessaging.instance.onTokenRefresh;
 
       _refreshSubscription = stream.listen((newToken) async {
-        debugPrint('[NotificationService] FCM token refreshed: $newToken');
+        debugPrint('[NotificationService] FCM device token refreshed.');
         await registerToken(newToken);
       }, onError: (Object err) {
-        debugPrint('[NotificationService] Error in FCM onTokenRefresh stream: $err');
+        debugPrint(
+          '[NotificationService] FCM onTokenRefresh stream failed '
+          '(type: ${err.runtimeType}).',
+        );
       });
     } catch (e) {
       debugPrint('[NotificationService] Could not listen to token refresh: $e');

@@ -366,14 +366,14 @@ void main() {
     });
   });
 
-  group('Real Backend Connectivity Test over Tailscale (Task 1B-1 Checkpoint)', () {
+  group('Real Backend Connectivity Test (Production & Dev Checkpoint)', () {
     test('GET /api/health returns 200 and status ok via ApiClient', () async {
       HttpOverrides.global = null;
       final fakeStorage = FakeSecureStorage();
       final secureStore = SecureStore(storage: fakeStorage);
       final realClient = ApiClient(
         customSecureStore: secureStore,
-        baseUrl: AppConstants.devApiBaseUrl,
+        baseUrl: AppConstants.prodApiBaseUrl,
       );
       try {
         final response = await realClient.dio.get<Map<String, dynamic>>('/api/health');
@@ -381,7 +381,7 @@ void main() {
         expect(response.data, isNotNull);
         expect(response.data!['status'], 'ok');
       } catch (e) {
-        fail('Failed to connect to dev server at ${realClient.dio.options.baseUrl}: $e');
+        fail('Failed to connect to server at ${realClient.dio.options.baseUrl}: $e');
       } finally {
         realClient.dispose();
       }
