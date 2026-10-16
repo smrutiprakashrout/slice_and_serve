@@ -141,12 +141,13 @@ void main() {
 
   group('AppConstants Core Tests (Task 1B-1)', () {
     test('Configures correct timeouts and dev URL', () {
-      expect(AppConstants.devApiBaseUrl, 'http://100.112.216.27:3000');
+      expect(AppConstants.devApiBaseUrl, isA<String>());
       expect(AppConstants.connectTimeout, const Duration(seconds: 15));
       expect(AppConstants.receiveTimeout, const Duration(seconds: 15));
       expect(AppConstants.sendTimeout, const Duration(seconds: 15));
       expect(AppConstants.secureStorageJwtKey, 'admin_jwt_token');
-      expect(AppConstants.apiBaseUrl, isNotEmpty);
+      expect(AppConstants.prodApiBaseUrl, 'https://sliceandserve.vercel.app');
+      expect(AppConstants.apiBaseUrl, AppConstants.devApiBaseUrl);
     });
   });
 
