@@ -418,11 +418,30 @@ jobs:
             echo '::error::apksigner did not confirm a valid APK signature.'
             exit 1
           fi
-          APK_CERT_SHA256="$(sed -nE 's/^Signer #1 certificate SHA-256 digest: ([[:xdigit:]: ]+)$/\1/p' <<<"$signer_output" | head -n 1 | tr -d ':' | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
-          if [[ ! "$APK_CERT_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
-            echo '::error::Could not read the APK signer SHA-256 certificate fingerprint from apksigner output.'
+          APK_CERT_LIST="$(
+            printf '%s\n' "$signer_output" \
+              | grep 'certificate SHA-256 digest:' \
+              | sed 's/.*certificate SHA-256 digest://' \
+              | tr -d ': \r' \
+              | tr '[:lower:]' '[:upper:]' \
+              | sort -u || true
+          )"
+          if [[ -z "$APK_CERT_LIST" ]]; then
+            echo '::error::Could not read an APK signer SHA-256 certificate fingerprint from apksigner output.'
+            printf '%s\n' "$signer_output" | grep -E '\b(certificate|Signer)\b' || true
             exit 1
           fi
+          mapfile -t apk_cert_values <<<"$APK_CERT_LIST"
+          if ((${#apk_cert_values[@]} > 1)); then
+            echo '::error::APK contains multiple distinct signer certificate SHA-256 fingerprints; multiple signers or key rotation are not accepted.'
+            printf '%s\n' "${apk_cert_values[@]}"
+            exit 1
+          fi
+          if [[ ! "${apk_cert_values[0]}" =~ ^[A-F0-9]{64}$ ]]; then
+            echo '::error::The APK signer certificate SHA-256 fingerprint is not 64 uppercase hexadecimal characters.'
+            exit 1
+          fi
+          APK_CERT_SHA256="${apk_cert_values[0]}"
           if [[ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]]; then
             echo "::error::APK signer fingerprint $APK_CERT_SHA256 does not match the validated existing keystore certificate $EXPECTED_CERT_SHA256. Do not publish this APK."
             exit 1
