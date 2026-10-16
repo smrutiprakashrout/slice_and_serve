@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -431,34 +432,35 @@ class _OrdersScreenState extends ConsumerState<OrdersScreen>
             color: theme.textSecondary,
           ),
         ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildReviewChip(
-              key: const Key('orders_mode_list'),
-              label: 'List',
-              isSelected: _viewMode == OrdersViewMode.list,
-              onTap: () => _setViewMode(OrdersViewMode.list),
-              theme: theme,
-            ),
-            const SizedBox(width: AppTokens.space1),
-            _buildReviewChip(
-              key: const Key('orders_mode_loading'),
-              label: 'Loading',
-              isSelected: _viewMode == OrdersViewMode.loading,
-              onTap: () => _setViewMode(OrdersViewMode.loading),
-              theme: theme,
-            ),
-            const SizedBox(width: AppTokens.space1),
-            _buildReviewChip(
-              key: const Key('orders_mode_empty'),
-              label: 'Empty',
-              isSelected: _viewMode == OrdersViewMode.empty,
-              onTap: () => _setViewMode(OrdersViewMode.empty),
-              theme: theme,
-            ),
-          ],
-        ),
+        if (kDebugMode)
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildReviewChip(
+                key: const Key('orders_mode_list'),
+                label: 'List',
+                isSelected: _viewMode == OrdersViewMode.list,
+                onTap: () => _setViewMode(OrdersViewMode.list),
+                theme: theme,
+              ),
+              const SizedBox(width: AppTokens.space1),
+              _buildReviewChip(
+                key: const Key('orders_mode_loading'),
+                label: 'Loading',
+                isSelected: _viewMode == OrdersViewMode.loading,
+                onTap: () => _setViewMode(OrdersViewMode.loading),
+                theme: theme,
+              ),
+              const SizedBox(width: AppTokens.space1),
+              _buildReviewChip(
+                key: const Key('orders_mode_empty'),
+                label: 'Empty',
+                isSelected: _viewMode == OrdersViewMode.empty,
+                onTap: () => _setViewMode(OrdersViewMode.empty),
+                theme: theme,
+              ),
+            ],
+          ),
       ],
     );
   }

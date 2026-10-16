@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -334,31 +335,32 @@ class _MenuScreenState extends ConsumerState<MenuScreen>
                     color: theme.textSecondary,
                   ),
                 ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ViewModeSelectorChip(
-                      key: const Key('menu_view_mode_list'),
-                      label: 'List',
-                      isSelected: _viewMode == MenuViewMode.list,
-                      onTap: () => _setViewMode(MenuViewMode.list),
-                    ),
-                    const SizedBox(width: AppTokens.space1),
-                    _ViewModeSelectorChip(
-                      key: const Key('menu_view_mode_loading'),
-                      label: 'Loading',
-                      isSelected: _viewMode == MenuViewMode.loading,
-                      onTap: () => _setViewMode(MenuViewMode.loading),
-                    ),
-                    const SizedBox(width: AppTokens.space1),
-                    _ViewModeSelectorChip(
-                      key: const Key('menu_view_mode_empty'),
-                      label: 'Empty',
-                      isSelected: _viewMode == MenuViewMode.empty,
-                      onTap: () => _setViewMode(MenuViewMode.empty),
-                    ),
-                  ],
-                ),
+                if (kDebugMode)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _ViewModeSelectorChip(
+                        key: const Key('menu_view_mode_list'),
+                        label: 'List',
+                        isSelected: _viewMode == MenuViewMode.list,
+                        onTap: () => _setViewMode(MenuViewMode.list),
+                      ),
+                      const SizedBox(width: AppTokens.space1),
+                      _ViewModeSelectorChip(
+                        key: const Key('menu_view_mode_loading'),
+                        label: 'Loading',
+                        isSelected: _viewMode == MenuViewMode.loading,
+                        onTap: () => _setViewMode(MenuViewMode.loading),
+                      ),
+                      const SizedBox(width: AppTokens.space1),
+                      _ViewModeSelectorChip(
+                        key: const Key('menu_view_mode_empty'),
+                        label: 'Empty',
+                        isSelected: _viewMode == MenuViewMode.empty,
+                        onTap: () => _setViewMode(MenuViewMode.empty),
+                      ),
+                    ],
+                  ),
               ],
             ),
           ),
