@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../core/api_client.dart';
@@ -456,14 +457,47 @@ class NotificationService {
       final notificationId = message.messageId?.hashCode ??
           DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
-      await notifications.show(
-        id: notificationId,
-        title: title,
-        body: body,
-        notificationDetails: details,
-        payload: orderId,
-      );
-      debugPrint('[NotificationService] Local notification shown for order: $orderId');
+      try {
+        await notifications.show(
+          id: notificationId,
+          title: title,
+          body: body,
+          notificationDetails: details,
+          payload: orderId,
+        );
+        debugPrint(
+          '[NotificationService] Local notification shown with custom sound for order: $orderId',
+        );
+      } on PlatformException catch (e) {
+        if (e.code == 'invalid_sound') {
+          debugPrint(
+            '[NotificationService] show() failed with invalid_sound: ${e.message}. Retrying on same channel without custom sound...',
+          );
+          const fallbackAndroidDetails = AndroidNotificationDetails(
+            orderChannelId,
+            orderChannelName,
+            channelDescription: orderChannelDescription,
+            importance: Importance.max,
+            priority: Priority.max,
+            icon: '@mipmap/ic_launcher',
+          );
+          const fallbackDetails =
+              NotificationDetails(android: fallbackAndroidDetails);
+
+          await notifications.show(
+            id: notificationId,
+            title: title,
+            body: body,
+            notificationDetails: fallbackDetails,
+            payload: orderId,
+          );
+          debugPrint(
+            '[NotificationService] Local notification shown without custom sound (fallback path) for order: $orderId',
+          );
+        } else {
+          rethrow;
+        }
+      }
     } catch (e) {
       debugPrint('[NotificationService] Error showing order notification: $e');
     }
