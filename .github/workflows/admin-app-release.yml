@@ -1,0 +1,667 @@
+name: Admin Android release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "adminapp/**"
+      - "!adminapp/**.md"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Build, sign, verify, and upload an artifact without creating a tag or release
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: admin-app-release
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: "3.47.5"
+  REQUIRE_CERT_PIN: "true"
+
+jobs:
+  verify:
+    name: Verify Flutter app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: adminapp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+  release:
+    name: Build and publish signed Android APK
+    needs: verify
+    if: ${{ github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: adminapp
+    steps:
+      - name: Checkout with release tags
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          pub-cache: true
+
+      - name: Signing and Firebase preflight
+        id: preflight
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          CERT_PIN: ${{ vars.ANDROID_CERT_SHA256 }}
+        run: |
+          set -Eeuo pipefail
+
+          missing=()
+          for name in \
+            ANDROID_KEYSTORE_BASE64 \
+            ANDROID_KEYSTORE_PASSWORD \
+            ANDROID_KEY_PASSWORD \
+            ANDROID_KEY_ALIAS \
+            GOOGLE_SERVICES_JSON_BASE64; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
+          done
+          if ((${#missing[@]})); then
+            printf -v missing_list '%s, ' "${missing[@]}"
+            echo "::error::Missing required GitHub Actions secrets: ${missing_list%, }. Add each listed secret in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          if ! printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"; then
+            echo '::error::ANDROID_KEYSTORE_BASE64 could not be decoded. Recreate it from the existing release keystore using base64 and update the GitHub secret.'
+            exit 1
+          fi
+          if [[ ! -s "$KEYSTORE_PATH" ]]; then
+            echo '::error::The decoded release keystore is empty. Check ANDROID_KEYSTORE_BASE64.'
+            exit 1
+          fi
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            >/dev/null 2>"$RUNNER_TEMP/keytool-store.err"; then
+            if grep -Eqi 'password was incorrect|tampered with|incorrect password' "$RUNNER_TEMP/keytool-store.err"; then
+              echo '::error::ANDROID_KEYSTORE_PASSWORD is incorrect for the supplied existing keystore. Update that secret; do not replace the keystore.'
+            else
+              echo '::error::The decoded file is not a readable Java keystore. Check ANDROID_KEYSTORE_BASE64 and supply the existing release keystore.'
+            fi
+            exit 1
+          fi
+
+          if ! keytool -list -keystore "$KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" \
+            >/dev/null 2>"$RUNNER_TEMP/keytool-alias.err"; then
+            echo '::error::ANDROID_KEY_ALIAS was not found in the supplied keystore. Set it to the alias of the existing release key.'
+            exit 1
+          fi
+
+          if ! keytool -certreq -keystore "$KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -keypass:env ANDROID_KEY_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" \
+            -file "$RUNNER_TEMP/key-check.csr" \
+            >/dev/null 2>"$RUNNER_TEMP/keytool-key.err"; then
+            echo '::error::ANDROID_KEY_PASSWORD is incorrect, or the selected alias is not a private-key entry. Check those values for the existing release key.'
+            exit 1
+          fi
+
+          cert_line="$(keytool -list -v -keystore "$KEYSTORE_PATH" \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" 2>/dev/null \
+            | sed -n 's/^[[:space:]]*SHA256: //p' | head -n 1)"
+          KEYSTORE_SHA256="$(printf '%s' "$cert_line" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [[ ! "$KEYSTORE_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
+            echo '::error::Could not extract a SHA-256 certificate fingerprint from the configured alias. Verify that ANDROID_KEY_ALIAS identifies the existing release certificate.'
+            exit 1
+          fi
+          echo "KEYSTORE_SHA256=$KEYSTORE_SHA256" >> "$GITHUB_ENV"
+          echo "keystore_sha256=$KEYSTORE_SHA256" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "$CERT_PIN" ]]; then
+            normalized_pin="$(printf '%s' "$CERT_PIN" | tr -d ':' | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+            if [[ ! "$normalized_pin" =~ ^[A-F0-9]{64}$ ]]; then
+              echo '::error::ANDROID_CERT_SHA256 must be a 64-character SHA-256 fingerprint (colons and letter case are ignored). Correct the repository variable.'
+              exit 1
+            fi
+            if [[ "$normalized_pin" != "$KEYSTORE_SHA256" ]]; then
+              echo "::error::The configured certificate pin does not match the existing keystore. Expected fingerprint: $KEYSTORE_SHA256. Verify the key and update ANDROID_CERT_SHA256 only if this is the intended release key."
+              exit 1
+            fi
+          elif [[ "$REQUIRE_CERT_PIN" == 'true' ]]; then
+            echo "::error::ANDROID_CERT_SHA256 is not set. Computed existing-key fingerprint: $KEYSTORE_SHA256. Verify it against your installed APK, then set the repository variable ANDROID_CERT_SHA256."
+            exit 1
+          else
+            echo "::warning::ANDROID_CERT_SHA256 is unset; continuing without the certificate pin. Computed fingerprint: $KEYSTORE_SHA256."
+          fi
+
+          export KEYSTORE_PATH
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          def escape_property(value: str) -> str:
+              escaped = []
+              for char in value:
+                  code = ord(char)
+                  if char == "\\":
+                      escaped.append("\\\\")
+                  elif char == "\t":
+                      escaped.append("\\t")
+                  elif char == "\n":
+                      escaped.append("\\n")
+                  elif char == "\r":
+                      escaped.append("\\r")
+                  elif char == "\f":
+                      escaped.append("\\f")
+                  elif char in " #!=:":
+                      escaped.append("\\" + char)
+                  elif code > 0xFFFF:
+                      encoded = char.encode("utf-16-be")
+                      escaped.extend(
+                          f"\\u{int.from_bytes(encoded[i:i + 2], 'big'):04X}"
+                          for i in range(0, len(encoded), 2)
+                      )
+                  elif code < 0x20 or code > 0x7E:
+                      escaped.append(f"\\u{code:04X}")
+                  else:
+                      escaped.append(char)
+              return "".join(escaped)
+
+          values = {
+              "keyAlias": os.environ["ANDROID_KEY_ALIAS"],
+              "keyPassword": os.environ["ANDROID_KEY_PASSWORD"],
+              "storeFile": os.environ["KEYSTORE_PATH"],
+              "storePassword": os.environ["ANDROID_KEYSTORE_PASSWORD"],
+          }
+          if any("\x00" in value for value in values.values()):
+              raise SystemExit("A signing property contains a NUL character and cannot be represented.")
+
+          path = Path("android/key.properties")
+          path.write_text(
+              "".join(f"{key}={escape_property(value)}\n" for key, value in values.items()),
+              encoding="ascii",
+          )
+          PY
+
+          cat > "$RUNNER_TEMP/VerifyKeyProperties.java" <<'JAVA'
+          import java.io.FileInputStream;
+          import java.util.Properties;
+
+          class VerifyKeyProperties {
+            public static void main(String[] args) throws Exception {
+              Properties properties = new Properties();
+              try (FileInputStream input = new FileInputStream(args[0])) {
+                properties.load(input);
+              }
+              String[][] expected = {
+                {"keyAlias", "ANDROID_KEY_ALIAS"},
+                {"keyPassword", "ANDROID_KEY_PASSWORD"},
+                {"storeFile", "KEYSTORE_PATH"},
+                {"storePassword", "ANDROID_KEYSTORE_PASSWORD"}
+              };
+              for (String[] pair : expected) {
+                if (!System.getenv(pair[1]).equals(properties.getProperty(pair[0]))) {
+                  System.err.println("key.properties validation failed for " + pair[0]);
+                  System.exit(1);
+                }
+              }
+              System.out.println("key.properties values validated without displaying them.");
+            }
+          }
+          JAVA
+          if ! java "$RUNNER_TEMP/VerifyKeyProperties.java" android/key.properties; then
+            echo '::error::key.properties did not round-trip through Java Properties. Check the signing secret values and their encoding.'
+            exit 1
+          fi
+
+          if ! printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" \
+            | base64 --decode > android/app/google-services.json; then
+            echo '::error::GOOGLE_SERVICES_JSON_BASE64 could not be decoded. Recreate the secret from the Firebase Android google-services.json file.'
+            exit 1
+          fi
+          if ! jq -e . android/app/google-services.json >/dev/null 2>&1; then
+            echo '::error::The decoded Firebase configuration is not valid JSON. Update GOOGLE_SERVICES_JSON_BASE64 from the correct file.'
+            exit 1
+          fi
+          if ! jq -e --arg package 'com.example.adminapp' \
+            'any(.client[]?; .client_info.android_client_info.package_name == $package)' \
+            android/app/google-services.json >/dev/null 2>&1; then
+            echo '::error::The Firebase configuration has no Android client for com.example.adminapp. Download the correct Firebase google-services.json and update GOOGLE_SERVICES_JSON_BASE64.'
+            exit 1
+          fi
+
+          echo 'Signing keystore, alias, certificate pin, Java properties, and Firebase package were validated.'
+
+      - name: Calculate version and check tag availability
+        id: version
+        shell: bash
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          BUILD_OFFSET: ${{ vars.ANDROID_BUILD_NUMBER_OFFSET }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          VERSION_NAME="$(python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          version_line = next(
+              (line for line in Path("pubspec.yaml").read_text().splitlines()
+               if re.match(r"^\s*version\s*:", line)),
+              None,
+          )
+          if version_line is None:
+              raise SystemExit("::error::pubspec.yaml has no version field. Add a version such as 1.2.3+4.")
+          value = version_line.split(":", 1)[1].split("#", 1)[0].strip()
+          if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+              value = value[1:-1].strip()
+          name = value.split("+", 1)[0].strip()
+          if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", name):
+              raise SystemExit("::error::pubspec.yaml version must contain a semantic version like 1.2.3 before the optional +build suffix.")
+          print(name)
+          PY
+          )"
+
+          offset="${BUILD_OFFSET:-100}"
+          if [[ ! "$offset" =~ ^-?[0-9]+$ ]]; then
+            echo '::error::ANDROID_BUILD_NUMBER_OFFSET must be an integer. Set the repository variable to an integer or leave it unset for 100.'
+            exit 1
+          fi
+          BUILD_NUMBER="$(python3 - "$RUN_NUMBER" "$offset" <<'PY'
+          import sys
+          try:
+              result = int(sys.argv[1], 10) + int(sys.argv[2], 10)
+          except ValueError:
+              raise SystemExit("::error::GitHub run number or build-number offset is not an integer.")
+          if result <= 0 or result > 2100000000:
+              raise SystemExit("::error::Computed Android build number is outside the valid range 1..2100000000. Adjust ANDROID_BUILD_NUMBER_OFFSET.")
+          print(result)
+          PY
+          )"
+          TAG="admin-v${VERSION_NAME}-b${BUILD_NUMBER}"
+          ref="refs/tags/$TAG"
+
+          if git show-ref --verify --quiet "$ref"; then
+            echo "::error::Tag $TAG already exists locally. Choose a new app version or build-number offset; tags are never overwritten."
+            exit 1
+          fi
+          if ! remote_refs="$(git ls-remote --tags origin "$ref" "$ref^{}")"; then
+            echo '::error::Could not check remote tags. Verify checkout credentials and GitHub availability; no build was started.'
+            exit 1
+          fi
+          if [[ -n "$remote_refs" ]]; then
+            echo "::error::Tag $TAG already exists on origin. Choose a new app version or build-number offset; tags are never overwritten."
+            exit 1
+          fi
+
+          FLUTTER_METADATA="$(flutter --version --machine)"
+          FLUTTER_ACTUAL="$(jq -r '.frameworkVersion' <<<"$FLUTTER_METADATA")"
+          DART_VERSION="$(jq -r '.dartSdkVersion' <<<"$FLUTTER_METADATA")"
+          if [[ "$FLUTTER_ACTUAL" != "$FLUTTER_VERSION" ]]; then
+            echo '::error::The installed Flutter version does not match the pinned FLUTTER_VERSION. Correct the Flutter setup before building.'
+            exit 1
+          fi
+
+          {
+            echo "VERSION_NAME=$VERSION_NAME"
+            echo "BUILD_NUMBER=$BUILD_NUMBER"
+            echo "TAG=$TAG"
+            echo "RELEASE_URL=https://github.com/$REPOSITORY/releases/tag/$TAG"
+            echo "FLUTTER_ACTUAL=$FLUTTER_ACTUAL"
+            echo "DART_VERSION=$DART_VERSION"
+          } >> "$GITHUB_ENV"
+          {
+            echo "version_name=$VERSION_NAME"
+            echo "build_number=$BUILD_NUMBER"
+            echo "tag=$TAG"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release APK
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if ! flutter build apk --release --build-name "$VERSION_NAME" --build-number "$BUILD_NUMBER"; then
+            echo '::error::Flutter release build failed. Check the Android Gradle output, signing configuration, and Firebase configuration; no debug or unsigned fallback is used.'
+            exit 1
+          fi
+          if [[ ! -s build/app/outputs/flutter-apk/app-release.apk ]]; then
+            echo '::error::Flutter reported success but adminapp/build/app/outputs/flutter-apk/app-release.apk is missing or empty.'
+            exit 1
+          fi
+
+      - name: Verify APK signature, metadata, and notification sound
+        id: apk
+        shell: bash
+        env:
+          EXPECTED_CERT_SHA256: ${{ steps.preflight.outputs.keystore_sha256 }}
+        run: |
+          set -Eeuo pipefail
+          APK='build/app/outputs/flutter-apk/app-release.apk'
+          if [[ -z "${ANDROID_HOME:-}" || ! -d "$ANDROID_HOME/build-tools" ]]; then
+            echo '::error::ANDROID_HOME/build-tools is unavailable. Use a GitHub-hosted Android runner image with Android build-tools installed.'
+            exit 1
+          fi
+          BUILD_TOOLS_VERSION="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort -V | tail -n 1)"
+          if [[ -z "$BUILD_TOOLS_VERSION" ]]; then
+            echo '::error::No Android build-tools version was found under ANDROID_HOME/build-tools.'
+            exit 1
+          fi
+          APKSIGNER="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner"
+          AAPT2="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/aapt2"
+          if [[ ! -x "$APKSIGNER" || ! -x "$AAPT2" ]]; then
+            echo '::error::The newest Android build-tools directory lacks apksigner or aapt2. Repair the runner Android SDK installation.'
+            exit 1
+          fi
+
+          if ! signer_output="$("$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1)"; then
+            echo '::error::APK signature verification failed. Check the existing keystore, alias, and passwords; a debug or unsigned APK is not accepted.'
+            exit 1
+          fi
+          if ! grep -q '^Verifies$' <<<"$signer_output"; then
+            echo '::error::apksigner did not confirm a valid APK signature.'
+            exit 1
+          fi
+          APK_CERT_SHA256="$(sed -nE 's/^Signer #1 certificate SHA-256 digest: ([[:xdigit:]: ]+)$/\1/p' <<<"$signer_output" | head -n 1 | tr -d ':' | tr -d '[:space:]' | tr '[:lower:]' '[:upper:]')"
+          if [[ ! "$APK_CERT_SHA256" =~ ^[A-F0-9]{64}$ ]]; then
+            echo '::error::Could not read the APK signer SHA-256 certificate fingerprint from apksigner output.'
+            exit 1
+          fi
+          if [[ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]]; then
+            echo "::error::APK signer fingerprint $APK_CERT_SHA256 does not match the validated existing keystore certificate $EXPECTED_CERT_SHA256. Do not publish this APK."
+            exit 1
+          fi
+
+          if ! "$AAPT2" dump badging "$APK" > "$RUNNER_TEMP/apk-badging.txt" 2>"$RUNNER_TEMP/aapt2-badging.err"; then
+            echo '::error::aapt2 could not read APK badging metadata.'
+            exit 1
+          fi
+          PACKAGE_NAME="$(sed -nE "s/^package: name='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          APK_VERSION_CODE="$(sed -nE "s/^package: .*versionCode='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          APK_VERSION_NAME="$(sed -nE "s/^package: .*versionName='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          MIN_SDK="$(sed -nE "s/^sdkVersion:'([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          TARGET_SDK="$(sed -nE "s/^targetSdkVersion:'([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          if [[ "$PACKAGE_NAME" != 'com.example.adminapp' ]]; then
+            echo "::error::APK package is '$PACKAGE_NAME', expected com.example.adminapp. Check Android applicationId."
+            exit 1
+          fi
+          if [[ "$APK_VERSION_CODE" != "$BUILD_NUMBER" || "$APK_VERSION_NAME" != "$VERSION_NAME" ]]; then
+            echo "::error::APK version metadata is $APK_VERSION_NAME+$APK_VERSION_CODE, expected $VERSION_NAME+$BUILD_NUMBER. Check Flutter build arguments."
+            exit 1
+          fi
+          if [[ -z "$MIN_SDK" || -z "$TARGET_SDK" ]]; then
+            echo '::error::aapt2 did not report both minSdkVersion and targetSdkVersion.'
+            exit 1
+          fi
+
+          if ! "$AAPT2" dump resources "$APK" > "$RUNNER_TEMP/apk-resources.txt" 2>"$RUNNER_TEMP/aapt2-resources.err"; then
+            echo '::error::aapt2 could not read the APK resource table.'
+            exit 1
+          fi
+          if ! grep -Fq 'raw/order_alert' "$RUNNER_TEMP/apk-resources.txt"; then
+            echo '::error::Release APK is missing raw/order_alert. Check Android resource shrinking/keep configuration; the notification sound must be packaged before release.'
+            exit 1
+          fi
+
+          APK_SIZE_BYTES="$(stat -c '%s' "$APK")"
+          APK_SHA256="$(sha256sum "$APK" | awk '{print $1}')"
+          {
+            echo "MIN_SDK=$MIN_SDK"
+            echo "TARGET_SDK=$TARGET_SDK"
+            echo "APK_SIZE_BYTES=$APK_SIZE_BYTES"
+            echo "APK_SHA256=$APK_SHA256"
+            echo "APK_CERT_SHA256=$APK_CERT_SHA256"
+          } >> "$GITHUB_ENV"
+          {
+            echo "min_sdk=$MIN_SDK"
+            echo "target_sdk=$TARGET_SDK"
+            echo "apk_size_bytes=$APK_SIZE_BYTES"
+            echo "apk_sha256=$APK_SHA256"
+          } >> "$GITHUB_OUTPUT"
+          echo "APK verified: package=$PACKAGE_NAME version=$APK_VERSION_NAME+$APK_VERSION_CODE SDK=$MIN_SDK/$TARGET_SDK size=${APK_SIZE_BYTES} bytes SHA-256=$APK_SHA256"
+
+      - name: Package APK and checksum
+        id: package
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          APK_NAME="slice-and-serve-admin-v${VERSION_NAME}-b${BUILD_NUMBER}.apk"
+          CHECKSUM_NAME="${APK_NAME}.sha256"
+          PACKAGE_DIR="$RUNNER_TEMP/admin-app-release"
+          mkdir -p "$PACKAGE_DIR"
+          if ! mv build/app/outputs/flutter-apk/app-release.apk "$PACKAGE_DIR/$APK_NAME"; then
+            echo '::error::Could not move the verified APK into the release package directory.'
+            exit 1
+          fi
+          if ! (cd "$PACKAGE_DIR" && sha256sum "$APK_NAME" > "$CHECKSUM_NAME"); then
+            echo '::error::Could not create the relative-filename SHA-256 checksum file.'
+            exit 1
+          fi
+          if ! (cd "$PACKAGE_DIR" && sha256sum -c "$CHECKSUM_NAME"); then
+            echo '::error::The packaged APK does not match its checksum file.'
+            exit 1
+          fi
+          {
+            echo "PACKAGE_DIR=$PACKAGE_DIR"
+            echo "APK_NAME=$APK_NAME"
+            echo "CHECKSUM_NAME=$CHECKSUM_NAME"
+          } >> "$GITHUB_ENV"
+          echo "apk_name=$APK_NAME" >> "$GITHUB_OUTPUT"
+          echo "checksum_name=$CHECKSUM_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Compose release notes
+        id: notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -Eeuo pipefail
+          PREVIOUS_TAG="$(git tag --list 'admin-v*' --sort=-creatordate \
+            | awk -v current="$TAG" 'NF && $0 != current { print; exit }')"
+          RESPONSE="$RUNNER_TEMP/github-generated-notes.json"
+          API="repos/$REPOSITORY/releases/generate-notes"
+          if [[ -n "$PREVIOUS_TAG" ]]; then
+            if ! gh api --method POST "$API" \
+              -f "tag_name=$TAG" \
+              -f "target_commitish=$GITHUB_SHA" \
+              -f "previous_tag_name=$PREVIOUS_TAG" > "$RESPONSE"; then
+              echo '::error::GitHub could not generate release notes from the previous admin tag. Check the repository token permissions and tag history.'
+              exit 1
+            fi
+          else
+            if ! gh api --method POST "$API" \
+              -f "tag_name=$TAG" \
+              -f "target_commitish=$GITHUB_SHA" > "$RESPONSE"; then
+              echo '::error::GitHub could not generate first-release notes. Check the repository token permissions.'
+              exit 1
+            fi
+          fi
+          if ! jq -e '.body | type == "string"' "$RESPONSE" >/dev/null; then
+            echo '::error::GitHub release-notes API returned an invalid response.'
+            exit 1
+          fi
+          jq -r '.body' "$RESPONSE" > "$RUNNER_TEMP/generated-changelog.md"
+          TITLE="Slice & Serve Admin v${VERSION_NAME} (build ${BUILD_NUMBER})"
+          COMMIT_SHORT="${GITHUB_SHA:0:7}"
+          BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          NOTES_FILE="$RUNNER_TEMP/admin-app-release-notes.md"
+          {
+            printf '%s\n\n' "$TITLE"
+            printf '| Field | Value |\n|---|---|\n'
+            printf '| Version name | %s |\n' "$VERSION_NAME"
+            printf '| Build number (versionCode) | %s |\n' "$BUILD_NUMBER"
+            printf '| Package name | `com.example.adminapp` |\n'
+            printf '| Commit | [%s](https://github.com/%s/commit/%s) |\n' "$COMMIT_SHORT" "$REPOSITORY" "$GITHUB_SHA"
+            printf '| Build date (UTC) | %s |\n' "$BUILD_DATE"
+            printf '| Flutter | %s |\n' "$FLUTTER_ACTUAL"
+            printf '| Dart | %s |\n' "$DART_VERSION"
+            printf '| minSdk / targetSdk | %s / %s |\n' "$MIN_SDK" "$TARGET_SDK"
+            printf '| APK size | %s bytes |\n' "$APK_SIZE_BYTES"
+            printf '| APK SHA-256 | `%s` |\n' "$APK_SHA256"
+            printf '| Signing certificate SHA-256 | `%s` |\n\n' "$KEYSTORE_SHA256"
+            printf '## Install / update\n\n'
+            printf 'This APK is signed with the existing release certificate, so it installs as an update over earlier releases signed with the same certificate. Verify the download with `sha256sum -c <checksum file>` before installing.\n\n'
+            printf '## Changelog since %s\n\n' "${PREVIOUS_TAG:-the beginning of repository history}"
+            printf '> GitHub generated these notes repository-wide; the API does not filter changes to `adminapp/`, so web-app changes may also appear.\n\n'
+            cat "$RUNNER_TEMP/generated-changelog.md"
+          } > "$NOTES_FILE"
+          if ! cp "$NOTES_FILE" "$PACKAGE_DIR/RELEASE_NOTES.md"; then
+            echo '::error::Could not add release notes to the dry-run artifact package.'
+            exit 1
+          fi
+          {
+            echo "TITLE=$TITLE"
+            echo "NOTES_FILE=$NOTES_FILE"
+            echo "PREVIOUS_TAG=${PREVIOUS_TAG:-none}"
+          } >> "$GITHUB_ENV"
+          echo "notes_file=$NOTES_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload dry-run artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: slice-and-serve-admin-${{ steps.version.outputs.tag }}
+          path: ${{ runner.temp }}/admin-app-release
+          retention-days: 7
+          if-no-files-found: error
+          include-hidden-files: false
+        continue-on-error: false
+
+      - name: Publish GitHub release
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          if ! gh release create "$TAG" \
+            "$PACKAGE_DIR/$APK_NAME" \
+            "$PACKAGE_DIR/$CHECKSUM_NAME" \
+            --target "$GITHUB_SHA" \
+            --title "$TITLE" \
+            --notes-file "$NOTES_FILE"; then
+            echo '::error::GitHub release creation failed. Check contents:write permission, tag availability, and release asset validity; no existing tag or release is overwritten.'
+            exit 1
+          fi
+
+      - name: Confirm release, tag target, and assets
+        if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.dry_run) }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          if ! release_json="$(gh release view "$TAG" --json url,assets 2>"$RUNNER_TEMP/release-view.err")"; then
+            echo '::error::The release was created but could not be read back. Check GitHub release permissions and API availability.'
+            exit 1
+          fi
+          if ! jq -e --arg apk "$APK_NAME" --arg checksum "$CHECKSUM_NAME" \
+            '[.assets[].name] as $names | ($names | index($apk)) != null and ($names | index($checksum)) != null' \
+            <<<"$release_json" >/dev/null; then
+            echo '::error::The published release is missing the APK or checksum asset. Do not announce it until both assets are present.'
+            exit 1
+          fi
+          if ! tagged_commit="$(gh api "repos/$GITHUB_REPOSITORY/commits/$TAG" --jq '.sha')"; then
+            echo '::error::Could not resolve the published tag to a commit. Verify the release tag through the GitHub API.'
+            exit 1
+          fi
+          if [[ "$tagged_commit" != "$GITHUB_SHA" ]]; then
+            echo "::error::Release tag $TAG points to $tagged_commit instead of the built commit $GITHUB_SHA. Stop distribution and investigate the tag race."
+            exit 1
+          fi
+          RELEASE_URL="$(jq -r '.url' <<<"$release_json")"
+          echo "RELEASE_URL=$RELEASE_URL" >> "$GITHUB_ENV"
+          echo "Confirmed release $TAG with APK and checksum at the built commit."
+
+      - name: Cleanup signing and Firebase files
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/release.jks" \
+            "$RUNNER_TEMP/key-check.csr" \
+            "$RUNNER_TEMP/keytool-store.err" \
+            "$RUNNER_TEMP/keytool-alias.err" \
+            "$RUNNER_TEMP/keytool-key.err" \
+            "$RUNNER_TEMP/VerifyKeyProperties.java" \
+            android/key.properties \
+            android/app/google-services.json
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+        run: |
+          {
+            echo '## Admin Android release'
+            echo
+            echo "- Tag: \`${TAG:-not calculated}\`"
+            echo "- Release URL: ${RELEASE_URL:-not published}"
+            echo "- Version: ${VERSION_NAME:-not calculated} (build ${BUILD_NUMBER:-not calculated})"
+            echo "- APK SHA-256: \`${APK_SHA256:-not available}\`"
+            echo "- Signing certificate SHA-256: \`${KEYSTORE_SHA256:-not available}\`"
+            echo "- Dry run: ${DRY_RUN}"
+            if [[ -f "${NOTES_FILE:-}" ]]; then
+              echo
+              echo '### Release notes (would-be notes for dry runs)'
+              echo
+              cat "$NOTES_FILE"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
