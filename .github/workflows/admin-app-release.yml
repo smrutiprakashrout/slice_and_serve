@@ -454,8 +454,8 @@ jobs:
           PACKAGE_NAME="$(sed -nE "s/^package: name='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
           APK_VERSION_CODE="$(sed -nE "s/^package: .*versionCode='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
           APK_VERSION_NAME="$(sed -nE "s/^package: .*versionName='([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
-          MIN_SDK="$(sed -nE "s/^sdkVersion:'([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
-          TARGET_SDK="$(sed -nE "s/^targetSdkVersion:'([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          MIN_SDK="$(sed -nE "s/^[[:space:]]*(sdkVersion|minSdkVersion):'([^']+)'.*/\2/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
+          TARGET_SDK="$(sed -nE "s/^[[:space:]]*targetSdkVersion:'([^']+)'.*/\1/p" "$RUNNER_TEMP/apk-badging.txt" | head -n 1)"
           if [[ "$PACKAGE_NAME" != 'com.example.adminapp' ]]; then
             echo "::error::APK package is '$PACKAGE_NAME', expected com.example.adminapp. Check Android applicationId."
             exit 1
@@ -465,6 +465,7 @@ jobs:
             exit 1
           fi
           if [[ -z "$MIN_SDK" || -z "$TARGET_SDK" ]]; then
+            grep -i 'dkversion' "$RUNNER_TEMP/apk-badging.txt" || true
             echo '::error::aapt2 did not report both minSdkVersion and targetSdkVersion.'
             exit 1
           fi
