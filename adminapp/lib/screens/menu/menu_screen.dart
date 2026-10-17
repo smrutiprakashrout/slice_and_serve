@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+
+import '../../core/menu_image.dart';
 import '../../models/menu_item.dart';
 import '../../providers/menu_provider.dart';
 import '../../theme/app_theme.dart';
@@ -792,6 +794,69 @@ class _DismissibleMenuItemCardState extends State<_DismissibleMenuItemCard>
 }
 
 /// Themed item card displaying details and availability toggle.
+class _MenuItemImage extends StatelessWidget {
+  final MenuItem item;
+  final IconData categoryIcon;
+  final bool reduceMotion;
+
+  const _MenuItemImage({
+    required this.item,
+    required this.categoryIcon,
+    required this.reduceMotion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.appTheme;
+    final imageUrl = resolveMenuImageUrl(item.image);
+
+    Widget categoryFallback() =>
+        Center(child: Icon(categoryIcon, size: 32, color: theme.brandInk));
+
+    return Semantics(
+      // The card already exposes the item's name as text.
+      excludeSemantics: true,
+      child: Container(
+        width: 72,
+        height: 72,
+        decoration: BoxDecoration(
+          color: theme.surfaceCreamAlt,
+          borderRadius: AppTokens.borderRadiusMedium,
+          border: Border.all(color: theme.divider),
+        ),
+        child: imageUrl == null
+            ? categoryFallback()
+            : ClipRRect(
+                borderRadius: AppTokens.borderRadiusMedium,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  cacheWidth: 216,
+                  gaplessPlayback: true,
+                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                    if (frame == null) {
+                      // The decorated container remains visible while loading.
+                      return const SizedBox.expand();
+                    }
+                    if (reduceMotion || wasSynchronouslyLoaded) return child;
+
+                    return TweenAnimationBuilder<double>(
+                      tween: Tween<double>(begin: 0, end: 1),
+                      duration: AppTokens.motionStandard,
+                      builder: (context, opacity, child) =>
+                          Opacity(opacity: opacity, child: child),
+                      child: child,
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) =>
+                      categoryFallback(),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
 class _MenuItemCard extends StatelessWidget {
   final MenuItem item;
   final IconData categoryIcon;
@@ -827,22 +892,10 @@ class _MenuItemCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Left: Food Graphic Placeholder (Permanent per PRD A-16)
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: theme.surfaceCreamAlt,
-                borderRadius: AppTokens.borderRadiusMedium,
-                border: Border.all(
-                  color: theme.divider,
-                ),
-              ),
-              child: Icon(
-                categoryIcon,
-                size: 32,
-                color: theme.brandInk,
-              ),
+            _MenuItemImage(
+              item: item,
+              categoryIcon: categoryIcon,
+              reduceMotion: reduceMotion,
             ),
             const SizedBox(width: AppTokens.space3),
 
