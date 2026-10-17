@@ -4,16 +4,32 @@ import { useState, useRef } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
-import { MOCK_LOYALTY } from "@/lib/mock-user-data";
 import { useRouter } from "next/navigation";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ShoppingBag,
+  Gift,
+  Leaf,
+  MessageCircle,
+  Phone,
+  Trash2,
+  LogOut,
+  LogIn,
+  ShieldCheck,
+  BadgeCheck,
+} from "lucide-react";
+import {
+  computeOrderStats,
+  formatMemberSince,
+  formatStampProgress,
+} from "@/lib/profile-stats";
+import type { ProfileOrder } from "@/lib/profile-stats";
 
 export interface CustomerPreferences {
   vegOnly: boolean;
-  orderUpdates: boolean;
-  offers: boolean;
-  newItems: boolean;
 }
 
 export interface CustomerProfile {
@@ -23,49 +39,18 @@ export interface CustomerProfile {
   email: string;
   photo?: string;
   preferences: CustomerPreferences;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
-import {
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  Check,
-  X,
-  ShoppingBag,
-  Gift,
-  MapPin,
-  Bell,
-  Leaf,
-  Star,
-  MessageCircle,
-  Phone,
-  HelpCircle,
-  Trash2,
-  LogOut,
-  LogIn,
-  ShieldCheck,
-  BadgeCheck,
-} from "lucide-react";
+interface LoyaltySummary {
+  stamps: number;
+  totalRequired: number;
+}
+
+const CONTACT_PHONE = "+919337867207";
+const CONTACT_HOURS = "Mon-Sun, 3:30 PM - 10:00 PM";
 
 gsap.registerPlugin(useGSAP);
-
-// ─── Avatar data — 12 cartoon illustrations via DiceBear SVG API ─────────────
-// 6 male seeds, 6 female seeds — fun illustrated style, no photo uploads needed
-const AVATARS = [
-  { id: "m1", seed: "Felix", label: "Felix", gender: "male" },
-  { id: "m2", seed: "Leo", label: "Leo", gender: "male" },
-  { id: "m3", seed: "Arjun", label: "Arjun", gender: "male" },
-  { id: "m4", seed: "Rohan", label: "Rohan", gender: "male" },
-  { id: "m5", seed: "Dev", label: "Dev", gender: "male" },
-  { id: "m6", seed: "Kiran", label: "Kiran", gender: "male" },
-  { id: "f1", seed: "Priya", label: "Priya", gender: "female" },
-  { id: "f2", seed: "Ananya", label: "Ananya", gender: "female" },
-  { id: "f3", seed: "Meera", label: "Meera", gender: "female" },
-  { id: "f4", seed: "Zara", label: "Zara", gender: "female" },
-  { id: "f5", seed: "Divya", label: "Divya", gender: "female" },
-  { id: "f6", seed: "Nisha", label: "Nisha", gender: "female" },
-];
 
 const avatarUrl = (seed: string) =>
   `https://api.dicebear.com/9.x/adventurer/svg?seed=${seed}&backgroundColor=ffdfbf,ffd5dc,c0aede,b6e3f4,d1d4f9&radius=50`;
@@ -78,6 +63,7 @@ function Row({
   right,
   danger,
   onClick,
+  href,
 }: {
   icon: React.ElementType;
   label: string;
@@ -85,28 +71,13 @@ function Row({
   right?: React.ReactNode;
   danger?: boolean;
   onClick?: () => void;
+  href?: string;
 }) {
   // Using <div> instead of <button> prevents nested-button hydration errors
   // when `right` contains a Toggle (which is itself a <button>).
   // Accessibility is restored via role/tabIndex/onKeyDown.
-  return (
-    <div
-      role={onClick ? "button" : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={
-        onClick
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onClick();
-              }
-            }
-          : undefined
-      }
-      className={`w-full flex items-center gap-3.5 px-4 py-3.5 transition-colors text-left
-        ${onClick ? "cursor-pointer active:bg-[#fff1e3]" : ""}`}
-    >
+  const content = (
+    <>
       <div
         className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0
         ${danger ? "bg-red-50" : "bg-[#fff1e3]"}`}
@@ -128,6 +99,33 @@ function Row({
         (onClick ? (
           <ChevronRight className="w-4 h-4 text-[#3d1a00]/25 shrink-0" />
         ) : null)}
+    </>
+  );
+  const className = `w-full flex items-center gap-3.5 px-4 py-3.5 transition-colors text-left
+    ${onClick || href ? "cursor-pointer active:bg-[#fff1e3]" : ""}`;
+
+  if (href) {
+    return <a href={href} className={className}>{content}</a>;
+  }
+
+  return (
+    <div
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={className}
+    >
+      {content}
     </div>
   );
 }
@@ -160,138 +158,6 @@ function Toggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
         ${on ? "translate-x-4" : "translate-x-0"}`}
       />
     </button>
-  );
-}
-
-// ─── Avatar picker bottom sheet ───────────────────────────────────────────────
-function AvatarPicker({
-  current,
-  onSelect,
-  onClose,
-}: {
-  current: string;
-  onSelect: (seed: string) => void;
-  onClose: () => void;
-}) {
-  const sheetRef = useRef<HTMLDivElement>(null);
-
-  useGSAP(() => {
-    gsap.from(sheetRef.current, {
-      y: "100%",
-      duration: 0.4,
-      ease: "power3.out",
-    });
-  });
-
-  const males = AVATARS.filter((a) => a.gender === "male");
-  const females = AVATARS.filter((a) => a.gender === "female");
-
-  return (
-    <div className="fixed inset-0 z-[200] flex items-end justify-center">
-      <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"
-        onClick={onClose}
-      />
-      <div
-        ref={sheetRef}
-        className="relative w-full max-w-md bg-white rounded-t-3xl overflow-hidden shadow-2xl"
-      >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-2">
-          <div className="w-10 h-1 bg-gray-200 rounded-full" />
-        </div>
-
-        <div className="px-5 pb-2 flex items-center justify-between">
-          <p className="font-black text-base text-[#3d1a00]">
-            Pick your avatar
-          </p>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-[#f5e6d0] flex items-center justify-center"
-          >
-            <X className="w-4 h-4 text-[#3d1a00]" />
-          </button>
-        </div>
-
-        <div className="px-5 pb-8 pt-2 space-y-5">
-          {/* Male row */}
-          <div>
-            <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24] mb-3">
-              Boys
-            </p>
-            <div className="grid grid-cols-6 gap-2">
-              {males.map((av) => (
-                <button
-                  key={av.id}
-                  onClick={() => {
-                    onSelect(av.seed);
-                    onClose();
-                  }}
-                  className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-200 active:scale-90
-                    ${
-                      current === av.seed
-                        ? "border-yellow-900 shadow-lg shadow-yellow-900/20 scale-105"
-                        : "border-transparent"
-                    }`}
-                >
-                  <img
-                    src={avatarUrl(av.seed)}
-                    alt={av.label}
-                    className="w-full aspect-square"
-                  />
-                  {current === av.seed && (
-                    <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-yellow-900 rounded-full flex items-center justify-center">
-                      <Check
-                        className="w-2.5 h-2.5 text-white"
-                        strokeWidth={3}
-                      />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Female row */}
-          <div>
-            <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24] mb-3">
-              Girls
-            </p>
-            <div className="grid grid-cols-6 gap-2">
-              {females.map((av) => (
-                <button
-                  key={av.id}
-                  onClick={() => {
-                    onSelect(av.seed);
-                    onClose();
-                  }}
-                  className={`relative rounded-2xl overflow-hidden border-2 transition-all duration-200 active:scale-90
-                    ${
-                      current === av.seed
-                        ? "border-yellow-900 shadow-lg shadow-yellow-900/20 scale-105"
-                        : "border-transparent"
-                    }`}
-                >
-                  <img
-                    src={avatarUrl(av.seed)}
-                    alt={av.label}
-                    className="w-full aspect-square"
-                  />
-                  {current === av.seed && (
-                    <div className="absolute bottom-0.5 right-0.5 w-4 h-4 bg-yellow-900 rounded-full flex items-center justify-center">
-                      <Check
-                        className="w-2.5 h-2.5 text-white"
-                        strokeWidth={3}
-                      />
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -428,32 +294,22 @@ export default function ProfilePage() {
   const {
     data: customer,
     error: customerError,
-    isLoading: isCustomerLoading,
     mutate,
   } = useSWR<CustomerProfile>(isSignedIn ? "/api/me" : null, fetcher);
 
-  // Profile state — name is initialised from session or customer profile
-  const [avatarSeed, setAvatarSeed] = useState("Arjun");
-  // Tracks whether the user has explicitly chosen a cartoon avatar via the
-  // picker. Until they do, we prefer their real Google profile photo (if
-  // Google provided one) and only fall back to the cartoon avatar when no
-  // Google photo exists.
-  const [useCartoonAvatar, setUseCartoonAvatar] = useState(false);
-  const [name, setName] = useState("");
-  const [editingName, setEditingName] = useState(false);
-  const [draftName, setDraftName] = useState("");
+  const { data: orders, isLoading: ordersLoading } = useSWR<ProfileOrder[]>(
+    isSignedIn ? "/api/orders/me" : null,
+    fetcher,
+  );
+  const {
+    data: loyalty,
+    error: loyaltyError,
+    isLoading: loyaltyLoading,
+  } = useSWR<LoyaltySummary>(isSignedIn ? "/api/loyalty/me" : null, fetcher);
 
-  // Sync name from session or customer profile when it first loads
-  const initialName = session?.user?.name ?? customer?.name ?? "";
-  const [syncedName, setSyncedName] = useState(false);
-  if (!syncedName && initialName) {
-    setName(initialName);
-    setDraftName(initialName);
-    setSyncedName(true);
-  }
+  const name = session?.user?.name ?? customer?.name ?? "";
 
   // Sheet visibility
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showDeleteSheet, setShowDeleteSheet] = useState(false);
   const [showSignOutSheet, setShowSignOutSheet] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
@@ -496,15 +352,9 @@ export default function ProfilePage() {
   // Preference values from /api/me (with schema defaults)
   const preferences: CustomerPreferences = customer?.preferences ?? {
     vegOnly: false,
-    orderUpdates: true,
-    offers: true,
-    newItems: false,
   };
 
   const vegOnly = preferences.vegOnly;
-  const orderUpdates = preferences.orderUpdates;
-  const offers = preferences.offers;
-  const newItems = preferences.newItems;
 
   const handleTogglePreference = async (key: keyof CustomerPreferences) => {
     const currentVal = preferences[key];
@@ -517,12 +367,7 @@ export default function ProfilePage() {
       email: session?.user?.email ?? "",
       preferences: {
         vegOnly: false,
-        orderUpdates: true,
-        offers: true,
-        newItems: false,
       },
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
     };
 
     const updatedCustomer: CustomerProfile = {
@@ -564,17 +409,26 @@ export default function ProfilePage() {
     }
   };
 
-  // still mocked — real data lands in P6-5 (loyalty) and P5-8 (orders)
-  const { memberSince, stamps, totalOrders } = MOCK_LOYALTY;
+  const { totalOrders, inProgressOrders } = computeOrderStats(orders);
+  const loyaltyErrorStatus = (loyaltyError as (Error & { status?: number }) | undefined)
+    ?.status;
+  const hasNoLoyaltyCard = loyaltyErrorStatus === 404;
+  const stamps = loyalty?.stamps ?? (hasNoLoyaltyCard ? 0 : undefined);
+  const totalStamps = loyalty?.totalRequired ?? (hasNoLoyaltyCard ? 10 : undefined);
+  const showStampLoading = loyaltyLoading || (!loyalty && !hasNoLoyaltyCard && !loyaltyError);
+  const stampStat = showStampLoading
+    ? "-"
+    : stamps !== undefined && totalStamps !== undefined
+      ? `${stamps}/${totalStamps}`
+      : "-";
+  const stampSubtext =
+    stamps !== undefined && totalStamps !== undefined
+      ? formatStampProgress(stamps, totalStamps)
+      : "-";
+  const memberSince = formatMemberSince(customer?.createdAt);
 
-  // Resolve which avatar image to show: Google's real profile photo by
-  // default (if available), unless the user has picked a cartoon avatar
-  // from the picker, or Google didn't provide a photo at all.
+  // Use the customer's Google photo when present; otherwise show their initial.
   const googlePhoto = session?.user?.image ?? customer?.photo ?? null;
-  const showCartoonAvatar = useCartoonAvatar || !googlePhoto;
-  const currentAvatarSrc = showCartoonAvatar
-    ? avatarUrl(avatarSeed)
-    : googlePhoto!;
 
   // Entrance animation
   useGSAP(
@@ -589,12 +443,6 @@ export default function ProfilePage() {
     },
     { scope: containerRef },
   );
-
-  // Save name
-  const saveName = () => {
-    if (draftName.trim()) setName(draftName.trim());
-    setEditingName(false);
-  };
 
   // ── Loading state — avoids flashing signed-out UI during session check ──
   if (status === "loading") {
@@ -671,70 +519,28 @@ export default function ProfilePage() {
 
           {/* Avatar */}
           <div className="flex flex-col items-center relative z-10">
-            <button
-              onClick={() => setShowAvatarPicker(true)}
-              className="relative mb-4 active:scale-95 transition-transform"
-            >
-              <div className="w-24 h-24 rounded-3xl overflow-hidden border-4 border-[#c17f24] shadow-xl">
+            <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#c17f24] shadow-xl mb-4 bg-[#3d1a00] flex items-center justify-center">
+              {googlePhoto ? (
                 <img
-                  src={currentAvatarSrc}
-                  alt="avatar"
+                  src={googlePhoto}
+                  alt="Profile"
                   className="w-full h-full object-cover"
                 />
-              </div>
-              {/* Edit badge */}
-              <div className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-[#c17f24] rounded-xl flex items-center justify-center shadow-md border-2 border-[#3d1a00]">
-                <Pencil className="w-3 h-3 text-white" strokeWidth={2.5} />
-              </div>
-            </button>
-
-            {/* Editable name */}
-            {editingName ? (
-              <div className="flex items-center gap-2 mb-1">
-                <input
-                  autoFocus
-                  value={draftName}
-                  onChange={(e) => setDraftName(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && saveName()}
-                  className="bg-white/10 border border-white/30 text-yellow-950 font-black text-xl text-center rounded-xl px-3 py-1 outline-none w-44 placeholder:text-white/30"
-                />
-                <button
-                  onClick={saveName}
-                  className="w-8 h-8 bg-[#c17f24] rounded-xl flex items-center justify-center active:scale-90"
-                >
-                  <Check className="w-4 h-4 text-white" strokeWidth={3} />
-                </button>
-                <button
-                  onClick={() => setEditingName(false)}
-                  className="w-8 h-8 bg-white/10 rounded-xl flex items-center justify-center active:scale-90"
-                >
-                  <X className="w-4 h-4 text-white" />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => {
-                  setDraftName(name);
-                  setEditingName(true);
-                }}
-                className="flex items-center gap-2 mb-1 group"
-              >
-                <h2 className="font-black text-2xl text-yellow-950 leading-tight">
-                  {name}
-                </h2>
-                <Pencil
-                  className="w-3.5 h-3.5 text-white/40 group-active:text-white transition-colors"
-                  strokeWidth={2}
-                />
-              </button>
-            )}
+              ) : (
+                <span className="text-white text-3xl font-black">
+                  {name.trim().charAt(0).toUpperCase() || "?"}
+                </span>
+              )}
+            </div>
+            <h2 className="font-black text-2xl text-yellow-950 leading-tight mb-1">
+              {name}
+            </h2>
 
             {/* Stats strip */}
             <div className="flex items-center gap-5 mt-1">
               <div className="text-center">
-                {/* still mocked — real data lands in P5-8 (orders) */}
                 <p className="text-yellow-700 font-black text-lg leading-none">
-                  {totalOrders}
+                  {ordersLoading ? "-" : totalOrders}
                 </p>
                 <p className="text-[#c9a87c] text-[10px] font-semibold mt-0.5">
                   Orders
@@ -742,33 +548,24 @@ export default function ProfilePage() {
               </div>
               <div className="w-px h-8 bg-white/15" />
               <div className="text-center">
-                {/* stamps from MOCK_LOYALTY — still mocked — real data lands in P6-5 (loyalty) */}
                 <p className="text-yellow-700 font-black text-lg leading-none">
-                  {stamps}/6
+                  {stampStat}
                 </p>
                 <p className="text-[#c9a87c] text-[10px] font-semibold mt-0.5">
                   Stamps
-                </p>
-              </div>
-              <div className="w-px h-8 bg-white/15" />
-              <div className="text-center">
-                <p className="text-[#c17f24] font-black text-lg leading-none">
-                  Gold
-                </p>
-                <p className="text-[#c9a87c] text-[10px] font-semibold mt-0.5">
-                  Member
                 </p>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Member since tag — still mocked — real data lands in P6-5 (loyalty) */}
-        <div className="profile-section flex justify-center -mt-4 mb-5 relative z-10">
-          <div className="bg-[#c17f24] text-[#3d1a00] text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full shadow-md">
-            Member since {memberSince}
+        {memberSince && (
+          <div className="profile-section flex justify-center -mt-4 mb-5 relative z-10">
+            <div className="bg-[#c17f24] text-[#3d1a00] text-[10px] font-black tracking-widest uppercase px-4 py-1.5 rounded-full shadow-md">
+              Member since {memberSince}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="space-y-3">
           {customerError && (
@@ -791,18 +588,24 @@ export default function ProfilePage() {
                 Activity
               </p>
             </div>
-            {/* still mocked — real data lands in P5-8 (orders) */}
             <Row
               icon={ShoppingBag}
               label="My Orders"
-              sub="1 order currently active"
+              sub={
+                ordersLoading
+                  ? "-"
+                  : inProgressOrders === 0
+                    ? "No active orders"
+                    : `${inProgressOrders} ${inProgressOrders === 1 ? "order" : "orders"} in progress`
+              }
+              onClick={() => router.push("/orders")}
             />
             <Divider />
-            {/* still mocked — real data lands in P6-5 (loyalty) */}
             <Row
               icon={Gift}
               label="Loyalty Rewards"
-              sub={`${stamps} of 6 stamps collected`}
+              sub={stampSubtext}
+              onClick={() => router.push("/loyalty")}
             />
           </SectionCard>
 
@@ -827,54 +630,7 @@ export default function ProfilePage() {
             />
           </SectionCard>
 
-          {/* ── 4. NOTIFICATIONS ──────────────────────────────────── */}
-          <SectionCard>
-            <div className="px-4 pt-3 pb-1">
-              <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24]">
-                Notifications
-              </p>
-            </div>
-            <Row
-              icon={Bell}
-              label="Order updates"
-              sub="Status changes for your orders"
-              onClick={() => handleTogglePreference("orderUpdates")}
-              right={
-                <Toggle
-                  on={orderUpdates}
-                  onToggle={() => handleTogglePreference("orderUpdates")}
-                />
-              }
-            />
-            <Divider />
-            <Row
-              icon={Star}
-              label="Offers & promos"
-              sub="Deals and discount codes"
-              onClick={() => handleTogglePreference("offers")}
-              right={
-                <Toggle
-                  on={offers}
-                  onToggle={() => handleTogglePreference("offers")}
-                />
-              }
-            />
-            <Divider />
-            <Row
-              icon={Bell}
-              label="New menu items"
-              sub="When we add something fresh"
-              onClick={() => handleTogglePreference("newItems")}
-              right={
-                <Toggle
-                  on={newItems}
-                  onToggle={() => handleTogglePreference("newItems")}
-                />
-              }
-            />
-          </SectionCard>
-
-          {/* ── 6. ACCOUNT ────────────────────────────────────────── */}
+          {/* ── 4. ACCOUNT ────────────────────────────────────────── */}
           <SectionCard>
             <div className="px-4 pt-3 pb-1">
               <p className="text-[10px] font-black tracking-widest uppercase text-[#c17f24]">
@@ -887,12 +643,6 @@ export default function ProfilePage() {
               sub={session?.user?.email ?? customer?.email ?? ""}
               right={<BadgeCheck className="w-5 h-5 text-[#c17f24] shrink-0" />}
             />
-            <Divider />
-            <Row
-              icon={MapPin}
-              label="Saved addresses"
-              sub="Manage delivery locations"
-            />
           </SectionCard>
 
           {/* ── 5. HELP & SUPPORT ─────────────────────────────────── */}
@@ -903,31 +653,17 @@ export default function ProfilePage() {
               </p>
             </div>
             <Row
-              icon={HelpCircle}
-              label="FAQs"
-              sub="Quick answers to common questions"
-            />
-            <Divider />
-            <Row
               icon={MessageCircle}
               label="Chat on WhatsApp"
-              sub="+91 98765 43210"
-              onClick={() =>
-                window.open("https://wa.me/919876543210", "_blank")
-              }
+              sub="+91 93378 67207 (party orders)"
+              href={`https://wa.me/${CONTACT_PHONE.slice(1)}`}
             />
             <Divider />
             <Row
               icon={Phone}
               label="Call us"
-              sub="Mon–Sun, 9 AM – 10 PM"
-              onClick={() => window.open("tel:+919876543210")}
-            />
-            <Divider />
-            <Row
-              icon={Star}
-              label="Rate on Google Maps"
-              sub="Enjoying Slice and Serve?"
+              sub={CONTACT_HOURS}
+              href={`tel:${CONTACT_PHONE}`}
             />
           </SectionCard>
 
@@ -952,24 +688,10 @@ export default function ProfilePage() {
             />
           </SectionCard>
 
-          {/* App version footer */}
-          <p className="text-center text-[10px] text-[#3d1a00]/25 font-medium pt-1">
-            Slice and Serve · v1.0.0
-          </p>
         </div>
       </div>
 
       {/* ── Sheets ───────────────────────────────────────────────── */}
-      {showAvatarPicker && (
-        <AvatarPicker
-          current={avatarSeed}
-          onSelect={(seed) => {
-            setAvatarSeed(seed);
-            setUseCartoonAvatar(true);
-          }}
-          onClose={() => setShowAvatarPicker(false)}
-        />
-      )}
       {showDeleteSheet && (
         <DeleteSheet
           onClose={() => {

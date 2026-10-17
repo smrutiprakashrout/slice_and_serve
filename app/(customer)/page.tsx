@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Image from "next/image";
@@ -8,11 +9,18 @@ import { Star } from "lucide-react";
 import { useCartStore } from "@/lib/cart-store";
 import useSWR from "swr";
 import { fetcher } from "@/lib/fetcher";
+import { filterVegOnly } from "@/lib/menu-filters";
 import type { Category, MenuItem } from "@/lib/menu-data";
 
 interface MenuApiResponse {
   categories: Category[];
   items: MenuItem[];
+}
+
+interface CustomerPreferenceResponse {
+  preferences?: {
+    vegOnly?: boolean;
+  };
 }
 
 gsap.registerPlugin(useGSAP);
@@ -35,6 +43,12 @@ const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function MobileMenu() {
+  const { status: authStatus } = useSession();
+  const isSignedIn = authStatus === "authenticated";
+  const { data: customer } = useSWR<CustomerPreferenceResponse>(
+    isSignedIn ? "/api/me" : null,
+    fetcher,
+  );
   const { data, error, isLoading, mutate } = useSWR<MenuApiResponse>(
     "/api/menu",
     fetcher,
@@ -42,6 +56,8 @@ export default function MobileMenu() {
 
   const menuItems = data?.items ?? [];
   const categoriesList = data?.categories ?? [];
+  const vegOnly = customer?.preferences?.vegOnly === true;
+  const sourceMenuItems = filterVegOnly(menuItems, vegOnly);
 
   // activeCategory — which subcategory chip is active ("all" = none filter)
   const [activeCategory, setActiveCategory] = useState<string>("all");
@@ -77,12 +93,13 @@ export default function MobileMenu() {
   // "all" diet tab = full menu (ignore category too, already reset above)
   // "filter" = all diets within selected category
   // "veg"/"non-veg" = filter by type within selected category
-  const categoryFiltered = menuItems.filter((item) =>
+  const categoryFiltered = sourceMenuItems.filter((item) =>
     activeCategory === "all" ? true : item.categorySlug === activeCategory,
   );
+  const activeDietFilter = vegOnly && dietFilter === "non-veg" ? "veg" : dietFilter;
   const filteredMenu = categoryFiltered.filter((item) => {
-    if (dietFilter === "all" || dietFilter === "filter") return true;
-    return item.type === dietFilter;
+    if (activeDietFilter === "all" || activeDietFilter === "filter") return true;
+    return item.type === activeDietFilter;
   });
 
   // Counts scoped to current category — shown in each tab
@@ -91,7 +108,7 @@ export default function MobileMenu() {
     (i) => i.type === "non-veg",
   ).length;
   const filterCount = categoryFiltered.length;
-  const allCount = menuItems.length;
+  const allCount = sourceMenuItems.length;
 
   const otherCategories = categoriesList.filter((c) => c.slug !== "all");
 
@@ -131,45 +148,46 @@ export default function MobileMenu() {
                 onClick={() => handleDietSelect("veg")}
                 style={{ WebkitTapHighlightColor: "transparent" }}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all duration-250 outline-none active:scale-95
-                  ${dietFilter === "veg" ? "bg-yellow-900" : ""}`}
+                  ${activeDietFilter === "veg" ? "bg-yellow-900" : ""}`}
               >
                 {/* Veg icon — green square dot */}
                 <span
                   className={`w-3.5 h-3.5 rounded-sm border-[1.5px] border-green-600 flex items-center justify-center shrink-0
-                  ${dietFilter === "veg" ? "bg-white" : "bg-transparent"}`}
+                  ${activeDietFilter === "veg" ? "bg-white" : "bg-transparent"}`}
                 >
                   <span className="w-[5px] h-[5px] rounded-full bg-green-600 block" />
                 </span>
                 <span
                   className={`font-black text-[11px] whitespace-nowrap
-                  ${dietFilter === "veg" ? "text-white" : "text-gray-500"}`}
+                  ${activeDietFilter === "veg" ? "text-white" : "text-gray-500"}`}
                 >
                   Veg
                 </span>
               </button>
 
               {/* Non-Veg */}
-              <button
+              {!vegOnly && <button
                 type="button"
                 onClick={() => handleDietSelect("non-veg")}
                 style={{ WebkitTapHighlightColor: "transparent" }}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all duration-250 outline-none active:scale-95
-                  ${dietFilter === "non-veg" ? "bg-yellow-900" : ""}`}
+                  ${activeDietFilter === "non-veg" ? "bg-yellow-900" : ""}`}
               >
                 {/* Non-veg icon — red square dot */}
                 <span
                   className={`w-3.5 h-3.5 rounded-sm border-[1.5px] border-red-600 flex items-center justify-center shrink-0
-                  ${dietFilter === "non-veg" ? "bg-white" : "bg-transparent"}`}
+                  ${activeDietFilter === "non-veg" ? "bg-white" : "bg-transparent"}`}
                 >
                   <span className="w-[5px] h-[5px] rounded-full bg-red-600 block" />
                 </span>
                 <span
                   className={`font-black text-[11px] whitespace-nowrap
-                  ${dietFilter === "non-veg" ? "text-white" : "text-gray-500"}`}
+                  ${activeDietFilter === "non-veg" ? "text-white" : "text-gray-500"}`}
                 >
                   Non-Veg
                 </span>
               </button>
+              }
 
               {/* All — full reset */}
               <button
@@ -177,7 +195,7 @@ export default function MobileMenu() {
                 onClick={() => handleDietSelect("all")}
                 style={{ WebkitTapHighlightColor: "transparent" }}
                 className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 transition-all duration-250 outline-none active:scale-95
-                  ${dietFilter === "all" ? "bg-yellow-900" : ""}`}
+                  ${activeDietFilter === "all" ? "bg-yellow-900" : ""}`}
               >
                 {/* All icon — 2×2 grid dots */}
                 <span className="grid grid-cols-2 gap-[2px] shrink-0">
@@ -188,12 +206,12 @@ export default function MobileMenu() {
                 </span>
                 <span
                   className={`font-black text-[11px] whitespace-nowrap
-                  ${dietFilter === "all" ? "text-white" : "text-gray-500"}`}
+                  ${activeDietFilter === "all" ? "text-white" : "text-gray-500"}`}
                 >
                   All{" "}
                   <span
                     className={
-                      dietFilter === "all"
+                      activeDietFilter === "all"
                         ? "font-medium text-gray-100"
                         : "font-medium text-gray-400"
                     }
