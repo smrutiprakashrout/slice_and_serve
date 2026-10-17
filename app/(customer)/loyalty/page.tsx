@@ -38,10 +38,6 @@ const REWARD: LoyaltyReward = {
   image: "/images/65_sandwitch.jpg",
 };
 
-const BRAND = {
-  logo: "/images/logo.png",
-};
-
 function Stamp({
   filled,
   index,
@@ -368,7 +364,7 @@ export default function LoyaltyPage() {
 
   if (authStatus === "loading" || (isSignedIn && isLoading)) {
     return (
-      <div className="min-h-dvh bg-[#fff1e3] pt-16 flex items-center justify-center pb-32">
+      <div className="min-h-dvh bg-[#fff1e3] pt-[120px] flex items-center justify-center pb-32">
         <div
           aria-label="Loading loyalty card"
           className="h-10 w-10 animate-spin rounded-full border-4 border-yellow-900 border-t-transparent"
@@ -379,7 +375,7 @@ export default function LoyaltyPage() {
 
   if (!isSignedIn) {
     return (
-      <div className="min-h-dvh bg-[#fff1e3] px-8 pt-16 pb-32 flex flex-col items-center justify-center text-center">
+      <div className="min-h-dvh bg-[#fff1e3] px-8 pt-[120px] pb-32 flex flex-col items-center justify-center text-center">
         <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-[#f0d9b5] bg-white shadow-sm">
           <Gift className="h-10 w-10 text-yellow-900" />
         </div>
@@ -403,7 +399,7 @@ export default function LoyaltyPage() {
   if (error) {
     const is401 = (error as Error & { status?: number }).status === 401;
     return (
-      <div className="min-h-dvh bg-[#fff1e3] px-8 pt-16 pb-32 flex flex-col items-center justify-center text-center">
+      <div className="min-h-dvh bg-[#fff1e3] px-8 pt-[120px] pb-32 flex flex-col items-center justify-center text-center">
         <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-[#f0d9b5] bg-white shadow-sm">
           <Gift className="h-10 w-10 text-yellow-900" />
         </div>
@@ -483,25 +479,7 @@ export default function LoyaltyPage() {
       `}</style>
 
       <main className="min-h-dvh bg-[#fff1e3] font-sans">
-        <div className="mx-auto mt-16 flex min-h-dvh w-full max-w-md flex-col gap-4 bg-[#fff1e3] px-5 pb-32 pt-5">
-          <header className="loyalty-enter flex items-center gap-3 px-1">
-            <Image
-              src={BRAND.logo}
-              alt="Slice & Serve"
-              width={42}
-              height={42}
-              className="h-10 w-10 object-contain"
-            />
-            <div className="min-w-0">
-              <h1 className="font-display text-2xl font-bold leading-tight text-yellow-900">
-                Loyalty Card
-              </h1>
-              {firstName && (
-                <p className="mt-0.5 text-sm text-yellow-900/90">Hi, {firstName}</p>
-              )}
-            </div>
-          </header>
-
+        <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 bg-[#fff1e3] px-5 pb-32 pt-[120px]">
           <section className="loyalty-enter loyalty-enter-2 relative overflow-hidden rounded-3xl bg-yellow-900 p-5 text-[#fff1e3] shadow-lg shadow-yellow-900/15">
             <div
               aria-hidden="true"
@@ -513,7 +491,12 @@ export default function LoyaltyPage() {
               }}
             />
             <div className="relative">
-              <p className="text-xs font-semibold text-[#fff1e3]/75">Slice &amp; Serve</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-[#fdc647]/90">
+                Loyalty Card
+              </p>
+              <h1 className="font-display mt-1 text-2xl font-bold leading-tight text-[#fff1e3]">
+                {firstName ? `Hi, ${firstName}` : "Welcome back"}
+              </h1>
               <div className="mt-1 flex items-baseline gap-2">
                 <span className="font-display text-5xl font-bold leading-none text-[#fff1e3]">
                   {stamps}
