@@ -4,11 +4,15 @@ import Image from "next/image";
 import { MapPin, ChevronDown, ShoppingCart, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useEffect, useRef } from "react";
 import { useCartStore } from "@/lib/cart-store";
 import { useScrollDirection } from "@/lib/useScrollDirection";
 
 export default function TopBar() {
   const router = useRouter();
+  const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pointerStart = useRef<{ id: number; x: number; y: number } | null>(null);
+  const suppressProfileClick = useRef(false);
   const visible = useScrollDirection(); // defaults to [data-scroll-container]
   const { data: session } = useSession();
 
@@ -17,6 +21,16 @@ export default function TopBar() {
   const totalItems = items.reduce((sum, i) => sum + i.qty, 0);
 
   const googlePhoto = session?.user?.image ?? null;
+
+  const cancelProfileHold = () => {
+    if (holdTimer.current !== null) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+    pointerStart.current = null;
+  };
+
+  useEffect(() => cancelProfileHold, []);
 
   return (
     <div
@@ -27,8 +41,43 @@ export default function TopBar() {
       {/* Logo / User / Cart row */}
       <div className="bg-[#fff1e3] flex justify-between items-center px-6 py-2">
         <button
-          onClick={() => router.push("/profile")}
-          className="w-10 h-10 bg-yellow-900 rounded-full flex items-center justify-center shadow-sm active:scale-95 transition-transform overflow-hidden"
+          onPointerDown={(event) => {
+            if (event.button !== 0) return;
+            cancelProfileHold();
+            suppressProfileClick.current = false;
+            pointerStart.current = {
+              id: event.pointerId,
+              x: event.clientX,
+              y: event.clientY,
+            };
+            holdTimer.current = setTimeout(() => {
+              holdTimer.current = null;
+              suppressProfileClick.current = true;
+              router.push("/download/sas");
+            }, 5000);
+          }}
+          onPointerMove={(event) => {
+            const start = pointerStart.current;
+            if (
+              start?.id === event.pointerId &&
+              Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10
+            ) {
+              cancelProfileHold();
+            }
+          }}
+          onPointerUp={cancelProfileHold}
+          onPointerLeave={cancelProfileHold}
+          onPointerCancel={cancelProfileHold}
+          onContextMenu={(event) => event.preventDefault()}
+          onClick={() => {
+            if (suppressProfileClick.current) {
+              suppressProfileClick.current = false;
+              return;
+            }
+            router.push("/profile");
+          }}
+          style={{ WebkitTouchCallout: "none" }}
+          className="w-10 h-10 bg-yellow-900 rounded-full flex items-center justify-center shadow-sm active:scale-95 transition-transform overflow-hidden select-none"
         >
           {googlePhoto ? (
             <Image
