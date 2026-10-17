@@ -11,6 +11,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronsLeftRight,
+  MessageCircle,
 } from "lucide-react";
 
 gsap.registerPlugin(useGSAP);
@@ -129,23 +130,22 @@ const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
 export default function PartyMenuPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<"left" | "right">("right");
+  const [firstImageLoaded, setFirstImageLoaded] = useState(false);
 
-  // Refs for animations
-  const slideRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
+  const imageStackRef = useRef<HTMLDivElement>(null);
+  const infoRef = useRef<HTMLDivElement>(null);
   const swipeHintRef = useRef<HTMLDivElement>(null);
 
-  // Touch tracking for mobile swipe
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
+  const touchStartY = useRef(0);
+  const touchEndY = useRef(0);
 
   const activeItem = PARTY_MENU[currentIndex];
 
-  // Helper flags to disable loops
   const isFirstItem = currentIndex === 0;
   const isLastItem = currentIndex === PARTY_MENU.length - 1;
 
-  // Navigation Logic (Bounded, No Loops)
   const handleNext = () => {
     if (!isLastItem) {
       setDirection("right");
@@ -160,54 +160,62 @@ export default function PartyMenuPage() {
     }
   };
 
-  // Mobile Swipe Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.targetTouches[0].clientX;
+    touchStartY.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     touchEndX.current = e.targetTouches[0].clientX;
+    touchEndY.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
+    if (!touchStartX.current || !touchEndX.current) {
+      touchStartX.current = 0;
+      touchEndX.current = 0;
+      touchStartY.current = 0;
+      touchEndY.current = 0;
+      return;
+    }
     const distance = touchStartX.current - touchEndX.current;
+    const verticalDistance = touchStartY.current - touchEndY.current;
 
     const isLeftSwipe = distance > 50; // Swiping finger left (moving to NEXT item)
     const isRightSwipe = distance < -50; // Swiping finger right (moving to PREV item)
 
-    if (isLeftSwipe) handleNext();
-    if (isRightSwipe) handlePrev();
+    if (Math.abs(verticalDistance) <= Math.abs(distance)) {
+      if (isLeftSwipe) handleNext();
+      if (isRightSwipe) handlePrev();
+    }
 
-    // Reset touch coordinates
     touchStartX.current = 0;
     touchEndX.current = 0;
+    touchStartY.current = 0;
+    touchEndY.current = 0;
   };
 
-  // --- GSAP Animations ---
   useGSAP(() => {
-    // 1. Infinite Floating Animation for the raw food PNG
-    gsap.to(imageRef.current, {
-      y: -25,
-      rotation: 3,
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    gsap.to(imageStackRef.current, {
+      y: -12,
+      rotation: 1.5,
       duration: 2.5,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut",
     });
-
-    // 2. Animated Swipe Text Hint (Bottom Center)
     gsap.to(swipeHintRef.current, {
-      x: 10,
+      x: 6,
       duration: 1.5,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut",
     });
 
-    // 3. Animated Side Chevrons
     gsap.to(".swipe-hint-left", {
-      x: -8,
+      x: -5,
       duration: 1,
       repeat: -1,
       yoyo: true,
@@ -215,7 +223,7 @@ export default function PartyMenuPage() {
     });
 
     gsap.to(".swipe-hint-right", {
-      x: 8,
+      x: 5,
       duration: 1,
       repeat: -1,
       yoyo: true,
@@ -223,137 +231,172 @@ export default function PartyMenuPage() {
     });
   }, []);
 
-  // 4. Slide Transition Animation when swipe happens
   useGSAP(
     () => {
-      const xOffset = direction === "right" ? 100 : -100;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const xOffset = direction === "right" ? 12 : -12;
       gsap.fromTo(
-        slideRef.current,
-        { x: xOffset, opacity: 0, scale: 0.95 },
-        { x: 0, opacity: 1, scale: 1, duration: 0.5, ease: "power3.out" },
+        infoRef.current,
+        { x: xOffset, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.22, ease: "power2.out" },
       );
     },
-    { dependencies: [currentIndex], scope: slideRef },
+    { dependencies: [currentIndex], scope: infoRef },
   );
+
+  const handleDotClick = (index: number) => {
+    if (index === currentIndex) return;
+    setDirection(index > currentIndex ? "right" : "left");
+    setCurrentIndex(index);
+  };
+
+  const whatsappMessage = `Hi Slice & Serve, I'd like to place a party order for ${activeItem.name}.`;
+  const whatsappUrl = `https://wa.me/919337867207?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
     <main
-      className="bg-[#fff1e3] pt-14 text-black font-sans h-dvh w-full overflow-hidden flex flex-col items-center justify-center relative select-none"
+      className="party-page min-h-dvh w-full bg-[#fff1e3] px-5 pb-32 pt-[120px] font-sans text-yellow-900"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="max-w-md mx-auto w-full h-full flex flex-col relative z-50 mt-12">
-        {/* Top Header */}
-        <header className="px-6 pb-4 flex flex-col justify-center items-center w-full relative gap-2">
-          {/* Shop Logo */}
-          <span className="text-black/60 text-[11px] font-extrabold tracking-widest uppercase">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap');
+        .party-page .font-display { font-family: 'Playfair Display', Georgia, serif; }
+      `}</style>
+      <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+        <header className="text-center">
+          <span className="text-xs font-bold tracking-[0.2em] text-yellow-900/80 uppercase">
             Party Order Menu
           </span>
         </header>
 
-        {/* Dynamic Slide Content */}
-        <div
-          ref={slideRef}
-          className={`flex flex-col w-full h-[60vh] justify-center mb-6 relative`}
-        >
-          {/* Floating Image Area with Dynamic Swipe Hints */}
-          <div className="flex items-center h-[40vh] justify-between px-2 relative w-full ]">
-            {/* LEFT Swipe Hint (Hidden if on first item) */}
-            <div
-              className={`flex flex-col  items-center transition-opacity duration-300 ${isFirstItem ? "opacity-0" : "opacity-100"}`}
-            >
-              <ChevronsLeft className="swipe-hint-left w-8 h-8 text-black/30" />
+        <section aria-label="Party menu item" className="flex flex-col items-center">
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className={`flex h-11 w-11 items-center justify-center transition-opacity duration-300 ${isFirstItem ? "pointer-events-none opacity-0" : "opacity-100"}`}>
+              <ChevronsLeft aria-hidden="true" className="swipe-hint-left h-8 w-8 text-yellow-900/45" />
             </div>
-
-            {/* The Food PNG */}
-            <Image
-              ref={imageRef}
-              src={activeItem.image}
-              width={100}
-              height={100}
-              alt={activeItem.name}
-              className="w-64 h-64 sm:w-72 sm:h-72 object-contain drop-shadow-2xl z-10"
-              style={{
-                backgroundColor: activeItem.image
-                  ? "transparent"
-                  : "rgba(0,0,0,0.1)",
-                borderRadius: activeItem.image ? "0" : "50%",
-              }}
-            />
-
-            {/* RIGHT Swipe Hint (Hidden if on last item) */}
-            <div
-              className={`flex flex-col items-center transition-opacity duration-300 ${isLastItem ? "opacity-0" : "opacity-100"}`}
-            >
-              <ChevronsRight className="swipe-hint-right w-8 h-8 text-black/30" />
+            <div className="relative flex h-64 w-64 shrink-0 items-center justify-center sm:h-72 sm:w-72">
+              <div
+                aria-hidden="true"
+                className={`absolute h-[72%] w-[72%] rounded-full bg-[#f5e6d0] transition-opacity duration-300 ${firstImageLoaded ? "opacity-0" : "opacity-100"}`}
+              />
+              <div ref={imageStackRef} className="absolute inset-0">
+                {PARTY_MENU.map((item, index) => {
+                  const isActive = index === currentIndex;
+                  return (
+                    <div
+                      key={item.id}
+                      aria-hidden={!isActive}
+                      className={`absolute inset-0 flex items-center justify-center transition-opacity duration-[250ms] motion-reduce:transition-none ${isActive ? "z-10 opacity-100" : "pointer-events-none opacity-0"}`}
+                    >
+                      <Image
+                        src={item.image}
+                        width={288}
+                        height={288}
+                        sizes="(max-width: 640px) 256px, 288px"
+                        priority={index === 0 || Math.abs(index - currentIndex) <= 1}
+                        loading="eager"
+                        onLoad={index === 0 ? () => setFirstImageLoaded(true) : undefined}
+                        alt={item.name}
+                        className="h-full w-full object-contain drop-shadow-xl"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className={`flex h-11 w-11 items-center justify-center transition-opacity duration-300 ${isLastItem ? "pointer-events-none opacity-0" : "opacity-100"}`}>
+              <ChevronsRight aria-hidden="true" className="swipe-hint-right h-8 w-8 text-yellow-900/45" />
             </div>
           </div>
 
-          {/* Animated Swipe Text (Before Rating) */}
+          <div className="mt-1 flex flex-col items-center gap-3">
+            <div aria-live="polite" className="text-xs font-semibold tabular-nums text-yellow-900/75">
+              {currentIndex + 1} / {PARTY_MENU.length}
+            </div>
+            <div className="flex min-h-11 w-full items-center justify-center gap-0" aria-label="Choose a party menu item">
+              {PARTY_MENU.map((item, index) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  aria-label={`Show ${item.name}`}
+                  aria-current={index === currentIndex ? "step" : undefined}
+                  onClick={() => handleDotClick(index)}
+                  className="flex h-11 w-6 shrink-0 items-center justify-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2"
+                >
+                  <span className={`h-2 rounded-full transition-all duration-200 ${index === currentIndex ? "w-6 bg-[#fdc647]" : "w-2 bg-[#f0d9b5]"}`} />
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div
             ref={swipeHintRef}
-            className="w-full flex justify-center items-center gap-2 mb-6 text-black/60 z-20"
+            className="mt-2 flex items-center justify-center gap-2 text-sm text-yellow-900/70"
           >
-            <ChevronsLeftRight className="w-4 h-4" />
-            <span className="text-xs font-bold uppercase tracking-widest">
-              Swipe to view the next item
-            </span>
+            <ChevronsLeftRight aria-hidden="true" className="h-4 w-4" />
+            <span>Swipe to view the next item</span>
           </div>
+        </section>
 
-          {/* Bottom Info Section */}
-          <div className="px-8 flex flex-col gap-2 relative z-20">
-            {/* Rating & Veg/Non-Veg Label */}
-            <div className="flex items-center justify-between w-full mb-1">
-              <div className="bg-black/10 backdrop-blur-md px-3 py-1 rounded-full flex items-center gap-1 border border-black/10">
-                <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                <span className="text-sm font-bold text-black">
-                  {activeItem.rating}
-                </span>
-              </div>
-              <DietIcon type={activeItem.type} />
+        <section ref={infoRef} className="flex flex-col gap-2 rounded-3xl border border-[#f0d9b5] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 rounded-full border border-[#f0d9b5] bg-[#fff1e3] px-3 py-1.5">
+              <Star aria-hidden="true" className="h-4 w-4 fill-[#fdc647] text-[#fdc647]" />
+              <span className="text-sm font-bold text-yellow-900">{activeItem.rating}</span>
             </div>
-
-            <h1 className="text-2xl font-black leading-tight text-black drop-shadow-sm">
-              {activeItem.name}
-            </h1>
-
-            <p className="text-lg text-black/70 font-bold">
-              {activeItem.subtitle}
-            </p>
-
-            {/*<div className="mt-2 mb-8 w-full">
-              <button className="bg-black text-white w-full font-black text-lg px-8 py-4 rounded-xl shadow-[0_4px_20px_rgba(0,0,0,0.15)] active:scale-95 transition-transform">
-                Add to Party List
-              </button>
-            </div>*/}
+            <DietIcon type={activeItem.type} />
           </div>
-        </div>
 
-        {/* Desktop Controls Bottom */}
-        <div className="absolute bottom-6 left-0 w-full flex-col items-center justify-center z-50 pointer-events-none hidden md:flex">
-          <div className="flex gap-4 pointer-events-auto">
+          <h1 className="font-display text-2xl font-bold leading-tight text-yellow-900">
+            {activeItem.name}
+          </h1>
+          <p className="text-base font-medium text-yellow-900/70">
+            {activeItem.subtitle}
+          </p>
+
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-yellow-900 px-4 text-base font-semibold text-[#fff1e3] transition-colors hover:bg-yellow-900/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2"
+          >
+            <MessageCircle aria-hidden="true" className="h-5 w-5" />
+            Order on WhatsApp
+          </a>
+          <p className="text-center text-xs text-yellow-900/70">
+            Party orders are taken on WhatsApp. Open daily 3:30 PM – 10:00 PM.
+          </p>
+        </section>
+
+        <div className="hidden justify-center gap-4 md:flex">
+          <div className="flex gap-4">
             <button
+              type="button"
               onClick={handlePrev}
               disabled={isFirstItem}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+              aria-label="Previous party menu item"
+              className={`flex h-12 w-12 items-center justify-center rounded-full border border-[#f0d9b5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2 ${
                 isFirstItem
-                  ? "bg-black/5 text-black/20 cursor-not-allowed"
-                  : "bg-black/5 backdrop-blur-md border border-black/10 hover:bg-black/10 text-black active:scale-95"
+                  ? "cursor-not-allowed bg-[#f5e6d0] text-yellow-900/35"
+                  : "bg-white text-yellow-900 hover:bg-[#f5e6d0]"
               }`}
             >
-              <ChevronLeft className="w-6 h-6" />
+              <ChevronLeft aria-hidden="true" className="h-6 w-6" />
             </button>
             <button
+              type="button"
               onClick={handleNext}
               disabled={isLastItem}
-              className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${
+              aria-label="Next party menu item"
+              className={`flex h-12 w-12 items-center justify-center rounded-full border border-[#f0d9b5] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2 ${
                 isLastItem
-                  ? "bg-black/5 text-black/20 cursor-not-allowed"
-                  : "bg-black/5 backdrop-blur-md border border-black/10 hover:bg-black/10 text-black active:scale-95"
+                  ? "cursor-not-allowed bg-[#f5e6d0] text-yellow-900/35"
+                  : "bg-white text-yellow-900 hover:bg-[#f5e6d0]"
               }`}
             >
-              <ChevronRight className="w-6 h-6" />
+              <ChevronRight aria-hidden="true" className="h-6 w-6" />
             </button>
           </div>
         </div>
