@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import Image from "next/image";
@@ -12,7 +12,15 @@ import {
   ChevronsRight,
   ChevronsLeftRight,
   MessageCircle,
+  Plus,
+  Check,
+  X,
 } from "lucide-react";
+import {
+  buildPartyListMessage,
+  buildSingleDishMessage,
+  buildWhatsAppUrl,
+} from "@/lib/party-order-message";
 
 gsap.registerPlugin(useGSAP);
 
@@ -127,14 +135,78 @@ const DietIcon = ({ type }: { type: "veg" | "non-veg" }) => {
   );
 };
 
+const PARTY_LIST_STORAGE_KEY = "party-list-v1";
+const EMPTY_PARTY_LIST: string[] = [];
+const PARTY_MENU_IDS = new Set(PARTY_MENU.map((item) => item.id));
+const partyListListeners = new Set<() => void>();
+let partyListSnapshot: string[] = EMPTY_PARTY_LIST;
+let partyListStorageRead = false;
+
+function getPartyListSnapshot() {
+  if (!partyListStorageRead && typeof window !== "undefined") {
+    partyListStorageRead = true;
+    try {
+      const savedValue = window.sessionStorage.getItem(PARTY_LIST_STORAGE_KEY);
+      const savedIds: unknown = savedValue ? JSON.parse(savedValue) : [];
+      if (Array.isArray(savedIds)) {
+        partyListSnapshot = Array.from(
+          new Set(savedIds.filter((id): id is string => typeof id === "string" && PARTY_MENU_IDS.has(id))),
+        );
+      }
+    } catch {
+      partyListSnapshot = EMPTY_PARTY_LIST;
+    }
+  }
+
+  return partyListSnapshot;
+}
+
+function subscribeToPartyList(listener: () => void) {
+  partyListListeners.add(listener);
+  return () => partyListListeners.delete(listener);
+}
+
+function getServerPartyListSnapshot() {
+  return EMPTY_PARTY_LIST;
+}
+
+function updatePartyList(nextIds: string[]) {
+  partyListSnapshot = Array.from(
+    new Set(nextIds.filter((id) => PARTY_MENU_IDS.has(id))),
+  );
+  try {
+    window.sessionStorage.setItem(
+      PARTY_LIST_STORAGE_KEY,
+      JSON.stringify(partyListSnapshot),
+    );
+  } catch {
+    // Keep the list usable in memory when sessionStorage is unavailable.
+  }
+  partyListListeners.forEach((listener) => listener());
+}
+
+function stopTouchPropagation(event: React.TouchEvent<HTMLElement>) {
+  event.stopPropagation();
+}
+
 export default function PartyMenuPage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<"left" | "right">("right");
   const [firstImageLoaded, setFirstImageLoaded] = useState(false);
+  const [isPartyListOpen, setIsPartyListOpen] = useState(false);
+  const partyList = useSyncExternalStore(
+    subscribeToPartyList,
+    getPartyListSnapshot,
+    getServerPartyListSnapshot,
+  );
 
   const imageStackRef = useRef<HTMLDivElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const swipeHintRef = useRef<HTMLDivElement>(null);
+  const viewListButtonRef = useRef<HTMLButtonElement>(null);
+  const addPartyItemButtonRef = useRef<HTMLButtonElement>(null);
+  const partyListSheetRef = useRef<HTMLDivElement>(null);
+  const focusAfterCloseRef = useRef<"view" | "add">("view");
 
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
@@ -142,6 +214,10 @@ export default function PartyMenuPage() {
   const touchEndY = useRef(0);
 
   const activeItem = PARTY_MENU[currentIndex];
+  const partyListItems = partyList
+    .map((id) => PARTY_MENU.find((item) => item.id === id))
+    .filter((item): item is PartyMenuItem => item !== undefined);
+  const isActiveItemAdded = partyList.includes(activeItem.id);
 
   const isFirstItem = currentIndex === 0;
   const isLastItem = currentIndex === PARTY_MENU.length - 1;
@@ -250,12 +326,83 @@ export default function PartyMenuPage() {
     setCurrentIndex(index);
   };
 
-  const whatsappMessage = `Hi Slice & Serve, I'd like to place a party order for ${activeItem.name}.`;
-  const whatsappUrl = `https://wa.me/919337867207?text=${encodeURIComponent(whatsappMessage)}`;
+  const togglePartyItem = () => {
+    updatePartyList(
+      isActiveItemAdded
+        ? partyList.filter((id) => id !== activeItem.id)
+        : [...partyList, activeItem.id],
+    );
+  };
+
+  const removePartyItem = (id: string) => {
+    const nextList = partyList.filter((itemId) => itemId !== id);
+    updatePartyList(nextList);
+    if (nextList.length === 0) {
+      focusAfterCloseRef.current = "add";
+      setIsPartyListOpen(false);
+    }
+  };
+
+  const clearPartyList = () => {
+    focusAfterCloseRef.current = "add";
+    updatePartyList([]);
+    setIsPartyListOpen(false);
+  };
+
+  useEffect(() => {
+    if (!isPartyListOpen) return;
+
+    const viewListButton = viewListButtonRef.current;
+    const addPartyItemButton = addPartyItemButtonRef.current;
+    const focusSheet = () => {
+      const focusableElements = partyListSheetRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      focusableElements?.[0]?.focus();
+    };
+    const animationFrame = window.requestAnimationFrame(focusSheet);
+
+    const handleSheetKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setIsPartyListOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusableElements = partyListSheetRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusableElements?.length) return;
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault();
+        lastElement.focus();
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault();
+        firstElement.focus();
+      }
+    };
+
+    document.addEventListener("keydown", handleSheetKeyDown);
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      document.removeEventListener("keydown", handleSheetKeyDown);
+      window.requestAnimationFrame(() => {
+        const returnFocusTarget = focusAfterCloseRef.current === "view"
+          ? viewListButton
+          : addPartyItemButton;
+        returnFocusTarget?.focus();
+      });
+    };
+  }, [isPartyListOpen]);
+
+  const partyListNames = partyListItems.map((item) => item.name);
 
   return (
     <main
-      className="party-page min-h-dvh w-full bg-[#fff1e3] px-5 pb-32 pt-[120px] font-sans text-yellow-900"
+      className={`party-page min-h-dvh w-full bg-[#fff1e3] px-5 ${partyList.length > 0 ? "pb-[200px]" : "pb-32"} pt-[120px] font-sans text-yellow-900`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -263,6 +410,9 @@ export default function PartyMenuPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&display=swap');
         .party-page .font-display { font-family: 'Playfair Display', Georgia, serif; }
+        @media (prefers-reduced-motion: reduce) {
+          .party-page .party-list-bar { transition: none; }
+        }
       `}</style>
       <div className="mx-auto flex w-full max-w-md flex-col gap-5">
         <header className="text-center">
@@ -356,14 +506,27 @@ export default function PartyMenuPage() {
             {activeItem.subtitle}
           </p>
 
+          <button
+            ref={addPartyItemButtonRef}
+            type="button"
+            aria-pressed={isActiveItemAdded}
+            onClick={togglePartyItem}
+            className={`mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-base font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2 ${isActiveItemAdded ? "border-yellow-900 bg-[#fff1e3] text-yellow-900 hover:bg-[#f5e6d0]" : "border-yellow-900 bg-yellow-900 text-[#fff1e3] hover:bg-yellow-900/90"}`}
+          >
+            {isActiveItemAdded ? (
+              <Check aria-hidden="true" className="h-5 w-5 text-[#fdc647]" />
+            ) : (
+              <Plus aria-hidden="true" className="h-5 w-5" />
+            )}
+            {isActiveItemAdded ? "Added to list" : "Add to party list"}
+          </button>
           <a
-            href={whatsappUrl}
+            href={buildWhatsAppUrl(buildSingleDishMessage(activeItem.name))}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-yellow-900 px-4 text-base font-semibold text-[#fff1e3] transition-colors hover:bg-yellow-900/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2"
+            className="self-center rounded px-2 py-1 text-sm text-yellow-900/75 underline decoration-[#f0d9b5] underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647]"
           >
-            <MessageCircle aria-hidden="true" className="h-5 w-5" />
-            Order on WhatsApp
+            Order just this dish on WhatsApp
           </a>
           <p className="text-center text-xs text-yellow-900/70">
             Party orders are taken on WhatsApp. Open daily 3:30 PM – 10:00 PM.
@@ -401,6 +564,119 @@ export default function PartyMenuPage() {
           </div>
         </div>
       </div>
+
+      <div
+        aria-hidden={partyList.length === 0}
+        className={`party-list-bar fixed inset-x-4 bottom-[84px] z-40 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-yellow-900 px-4 py-2.5 text-[#fff1e3] shadow-xl transition-all duration-200 motion-reduce:transition-none ${partyList.length > 0 ? "translate-y-0 opacity-100" : "pointer-events-none invisible translate-y-2 opacity-0"}`}
+        onTouchStart={stopTouchPropagation}
+        onTouchMove={stopTouchPropagation}
+        onTouchEnd={stopTouchPropagation}
+      >
+        <p className="min-w-0 truncate text-sm font-semibold">
+          Party list · {partyList.length} {partyList.length === 1 ? "dish" : "dishes"}
+        </p>
+        <button
+          ref={viewListButtonRef}
+          type="button"
+          onClick={() => {
+            focusAfterCloseRef.current = "view";
+            setIsPartyListOpen(true);
+          }}
+          className="flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-[#fdc647] px-4 text-sm font-bold text-yellow-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fff1e3] focus-visible:ring-offset-2 focus-visible:ring-offset-yellow-900"
+        >
+          View list
+        </button>
+      </div>
+
+      {isPartyListOpen && (
+        <div
+          className="fixed inset-0 z-[60] bg-yellow-900/45"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsPartyListOpen(false);
+          }}
+          onTouchStart={stopTouchPropagation}
+          onTouchMove={stopTouchPropagation}
+          onTouchEnd={stopTouchPropagation}
+        >
+          <section
+            ref={partyListSheetRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Your party list"
+            tabIndex={-1}
+            className="absolute inset-x-0 bottom-0 mx-auto flex max-h-[min(84dvh,760px)] w-full max-w-md flex-col rounded-t-3xl border border-[#f0d9b5] bg-[#fff1e3] px-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-5 text-yellow-900 shadow-2xl"
+            onClick={(event) => event.stopPropagation()}
+            onTouchStart={stopTouchPropagation}
+            onTouchMove={stopTouchPropagation}
+            onTouchEnd={stopTouchPropagation}
+          >
+            <header className="mb-4 flex shrink-0 items-center justify-between gap-3">
+              <div>
+                <h2 className="font-display text-2xl font-bold">Your party list</h2>
+                <p className="mt-1 text-sm text-yellow-900/70">
+                  {partyList.length} {partyList.length === 1 ? "dish" : "dishes"}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close party list"
+                onClick={() => setIsPartyListOpen(false)}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#f0d9b5] bg-white text-yellow-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647]"
+              >
+                <X aria-hidden="true" className="h-5 w-5" />
+              </button>
+            </header>
+
+            <ol className="min-h-0 flex-1 space-y-2 overflow-y-auto pb-3">
+              {partyListItems.map((item, index) => (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-3 rounded-2xl border border-[#f0d9b5] bg-white p-3"
+                >
+                  <span className="w-6 shrink-0 text-sm font-bold text-yellow-900/70">
+                    {index + 1}.
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{item.name}</p>
+                    <p className="truncate text-xs text-yellow-900/70">{item.subtitle}</p>
+                  </div>
+                  <DietIcon type={item.type} />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${item.name}`}
+                    onClick={() => removePartyItem(item.id)}
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-yellow-900/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647]"
+                  >
+                    <X aria-hidden="true" className="h-5 w-5" />
+                  </button>
+                </li>
+              ))}
+            </ol>
+
+            <footer className="flex shrink-0 flex-col gap-2 border-t border-[#f0d9b5] pt-3">
+              <button
+                type="button"
+                onClick={clearPartyList}
+                className="min-h-11 self-start rounded px-2 text-sm font-semibold text-yellow-900/75 underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647]"
+              >
+                Clear all
+              </button>
+              <a
+                href={buildWhatsAppUrl(buildPartyListMessage(partyListNames))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-yellow-900 px-4 text-base font-semibold text-[#fff1e3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#fdc647] focus-visible:ring-offset-2"
+              >
+                <MessageCircle aria-hidden="true" className="h-5 w-5" />
+                Send on WhatsApp
+              </a>
+              <p className="text-center text-xs text-yellow-900/70">
+                We&apos;ll confirm quantity and price on WhatsApp.
+              </p>
+            </footer>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
