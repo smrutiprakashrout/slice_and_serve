@@ -13,20 +13,23 @@ export async function GET() {
   try {
     const session = await auth();
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session) {
       throw new ApiError(401, "UNAUTHORIZED", "Not signed in.");
+    }
+    if (!session.user?.id) {
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     await connectDB();
 
     if (!mongoose.isValidObjectId(session.user.id)) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const customer = await Customer.findById(session.user.id).lean();
 
     if (!customer) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     return NextResponse.json({
@@ -50,8 +53,11 @@ export async function PATCH(request: Request) {
   try {
     const session = await auth();
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session) {
       throw new ApiError(401, "UNAUTHORIZED", "Not signed in.");
+    }
+    if (!session.user?.id) {
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     let body: unknown;
@@ -106,7 +112,7 @@ export async function PATCH(request: Request) {
     await connectDB();
 
     if (!mongoose.isValidObjectId(session.user.id)) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const updatedCustomer =
@@ -119,7 +125,7 @@ export async function PATCH(request: Request) {
         : await Customer.findById(session.user.id).lean();
 
     if (!updatedCustomer) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     return NextResponse.json({
@@ -143,20 +149,23 @@ export async function DELETE() {
   try {
     const session = await auth();
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session) {
       throw new ApiError(401, "UNAUTHORIZED", "Not signed in.");
+    }
+    if (!session.user?.id) {
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     await connectDB();
 
     if (!mongoose.isValidObjectId(session.user.id)) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const customer = await Customer.findById(session.user.id);
 
     if (!customer) {
-      throw new ApiError(404, "NOT_FOUND", "Customer profile not found.");
+      return NextResponse.json({ deleted: true });
     }
 
     // Deletion order chosen for least damage on partial failure:

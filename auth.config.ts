@@ -8,5 +8,6 @@ export default {
   providers: [Google],
   pages: {
     signIn: "/login",
+    error: "/login",
   },
 } satisfies NextAuthConfig;

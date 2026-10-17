@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useRef, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { animate, createScope, createTimeline, type Scope } from "animejs";
 import Image from "next/image";
 import { ShieldCheck } from "lucide-react";
@@ -33,8 +33,10 @@ function GoogleIcon() {
   );
 }
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const hasAuthError = searchParams.has("error");
   const rootRef = useRef<HTMLDivElement>(null);
   const scope = useRef<Scope | null>(null);
 
@@ -162,6 +164,11 @@ export default function LoginPage() {
         </p>
 
         {/* Google Sign-in button */}
+        {hasAuthError && (
+          <p role="alert" className="mb-4 text-sm font-semibold text-[#3d1a00]">
+            We couldn&apos;t sign you in. Please try again.
+          </p>
+        )}
         <button
           onClick={handleGoogleLogin}
           className="login-button opacity-0 w-full h-14 bg-[#fff1e3] hover:bg-white text-[#2a1800] font-bold text-sm rounded-2xl flex items-center justify-center gap-3 shadow-xl active:scale-[0.97] transition-transform duration-200"
@@ -197,5 +204,13 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

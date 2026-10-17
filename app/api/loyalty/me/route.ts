@@ -5,6 +5,7 @@ import { connectDB } from "@/lib/db";
 import Customer from "@/model/Customer";
 import LoyaltyCard from "@/model/LoyaltyCard";
 import { ApiError, handleApiError } from "@/lib/api-error";
+import { ensureLoyaltyCard } from "@/lib/customer-provisioning";
 
 interface LoyaltyMeResponse {
   stamps: number;
@@ -21,29 +22,36 @@ export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user?.id) {
+    if (!session) {
       throw new ApiError(401, "UNAUTHORIZED", "Not signed in.");
+    }
+    if (!session.user?.id) {
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     await connectDB();
 
     if (!mongoose.isValidObjectId(session.user.id)) {
-      throw new ApiError(404, "NOT_FOUND", "Customer not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const customer = await Customer.findById(session.user.id).lean();
 
     if (!customer) {
-      throw new ApiError(404, "NOT_FOUND", "Customer not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
-    const loyaltyCard = await LoyaltyCard.findOne({
+    let loyaltyCard = await LoyaltyCard.findOne({
       customerId: customer._id,
     }).lean();
 
     if (!loyaltyCard) {
-      throw new ApiError(404, "NOT_FOUND", "Loyalty card not found.");
+      await ensureLoyaltyCard(customer._id);
+      loyaltyCard = await LoyaltyCard.findOne({
+        customerId: customer._id,
+      }).lean();
     }
+    if (!loyaltyCard) throw new Error("Loyalty card could not be created.");
 
     const responseBody: LoyaltyMeResponse = {
       stamps: loyaltyCard.stamps,

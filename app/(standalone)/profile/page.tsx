@@ -297,15 +297,19 @@ export default function ProfilePage() {
     mutate,
   } = useSWR<CustomerProfile>(isSignedIn ? "/api/me" : null, fetcher);
 
-  const { data: orders, isLoading: ordersLoading } = useSWR<ProfileOrder[]>(
-    isSignedIn ? "/api/orders/me" : null,
-    fetcher,
-  );
+  const {
+    data: orders,
+    error: ordersError,
+    isLoading: ordersLoading,
+  } = useSWR<ProfileOrder[]>(isSignedIn ? "/api/orders/me" : null, fetcher);
   const {
     data: loyalty,
     error: loyaltyError,
     isLoading: loyaltyLoading,
   } = useSWR<LoyaltySummary>(isSignedIn ? "/api/loyalty/me" : null, fetcher);
+
+  const sessionInvalid = [customerError, ordersError, loyaltyError]
+    .some((error) => (error as (Error & { status?: number }) | undefined)?.status === 401);
 
   const name = session?.user?.name ?? customer?.name ?? "";
 
@@ -477,6 +481,27 @@ export default function ProfilePage() {
         >
           <LogIn className="w-5 h-5" />
           Continue with Google
+        </button>
+      </div>
+    );
+  }
+
+  if (sessionInvalid) {
+    return (
+      <div className="min-h-dvh bg-[#fff1e3] flex flex-col items-center justify-center px-8 text-center pb-28">
+        <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-5 shadow-sm border border-[#f0d9b5]">
+          <LogIn className="w-10 h-10 text-yellow-900" aria-hidden="true" />
+        </div>
+        <h2 className="font-black text-2xl text-[#3d1a00] mb-2">Session expired</h2>
+        <p className="text-sm text-[#3d1a00]/70 leading-relaxed mb-8">
+          Your session is no longer valid. Please sign in again.
+        </p>
+        <button
+          onClick={() => signIn("google", { callbackUrl: "/profile" })}
+          className="w-full max-w-xs h-14 bg-[#3d1a00] text-white font-black text-sm rounded-2xl flex items-center justify-center gap-3 shadow-lg active:scale-95 transition-transform"
+        >
+          <LogIn className="w-5 h-5" />
+          Sign In
         </button>
       </div>
     );

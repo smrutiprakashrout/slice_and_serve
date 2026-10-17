@@ -12,20 +12,23 @@ export async function GET() {
   try {
     const session = await auth();
 
-    if (!session?.user?.id) {
+    if (!session) {
       throw new ApiError(401, "UNAUTHORIZED", "Not signed in.");
+    }
+    if (!session.user?.id) {
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     await connectDB();
 
     if (!mongoose.isValidObjectId(session.user.id)) {
-      throw new ApiError(404, "NOT_FOUND", "Customer not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const customer = await Customer.findById(session.user.id).lean();
 
     if (!customer) {
-      throw new ApiError(404, "NOT_FOUND", "Customer not found.");
+      throw new ApiError(401, "SESSION_INVALID", "Your session is no longer valid. Please sign in again.");
     }
 
     const orders = await Order.find({ customerId: customer._id })

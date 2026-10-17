@@ -1,54 +1,46 @@
 import NextAuth from "next-auth";
-import crypto from "node:crypto";
+import mongoose from "mongoose";
 import authConfig from "./auth.config";
-import { connectDB } from "@/lib/db";
-import Customer from "@/model/Customer";
-import LoyaltyCard from "@/model/LoyaltyCard";
+import { provisionCustomer } from "@/lib/customer-provisioning";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
-      // On initial sign-in `user` is populated; persist the id into the token
-      if (user && user.id) {
-        token.id = user.id;
-
+    async jwt({ token, user, profile }) {
+      // Only a successfully provisioned Mongo customer may become a session id.
+      if (user) {
+        delete token.id;
         try {
-          await connectDB();
-
-          let customer = await Customer.findOne({ googleId: user.id });
-
-          if (!customer) {
-            const stampToken = crypto.randomUUID();
-            const redeemToken = crypto.randomUUID();
-
-            customer = await Customer.create({
-              googleId: user.id,
-              name: user.name || "Customer",
-              email: user.email || "",
-              photo: user.image || undefined,
-              stampToken,
-              redeemToken,
-            });
-
-            await LoyaltyCard.create({
-              customerId: customer._id,
-              stamps: 0,
-            });
-          }
-
-          token.id = customer._id.toString();
+          const provisioned = await provisionCustomer({
+            googleId: user.id ?? "",
+            email: user.email,
+            ...(typeof profile?.email_verified === "boolean"
+              ? { emailVerified: profile.email_verified }
+              : {}),
+            name: user.name,
+            photo: user.image,
+          });
+          token.id = provisioned.id;
         } catch (error) {
-          console.error("Failed to upsert customer on sign-in:", error);
+          const message = error instanceof Error ? error.message : String(error);
+          console.error(
+            `[auth] Customer provisioning failed for Google account ${user.id ?? "<missing>"}: ${message}`,
+          );
+          throw error;
         }
       }
       return token;
     },
     async session({ session, token }) {
       // Expose the persisted id on the session object for client consumption
-      if (session.user) {
-        session.user.id = token.id as string;
+      if (
+        session.user &&
+        typeof token.id === "string" &&
+        token.id.length === 24 &&
+        mongoose.isValidObjectId(token.id)
+      ) {
+        session.user.id = token.id;
       }
       return session;
     },
